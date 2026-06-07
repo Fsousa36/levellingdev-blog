@@ -61,7 +61,7 @@ export function EditorClient() {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        'x-admin-token': token,
+        'x-admin-token': token.trim(),
         ...(init?.headers ?? {})
       }
     });
