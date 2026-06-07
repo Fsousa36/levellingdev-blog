@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteDatabasePost, hasDatabase, upsertDatabasePost } from '../../../lib/db';
+import { deleteDatabasePost, getEditorDatabasePosts, hasDatabase, updateDatabasePost, upsertDatabasePost } from '../../../lib/db';
 import { getAllPosts } from '../../../lib/blog';
 import { isAuthorized } from '../../../lib/auth';
 import type { BlogPost } from '../../../lib/types';
@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ database: hasDatabase(), posts: await getAllPosts() });
+  const posts = hasDatabase() ? await getEditorDatabasePosts() : await getAllPosts();
+  return NextResponse.json({ database: hasDatabase(), posts });
 }
 
 export async function POST(request: NextRequest) {
@@ -69,6 +70,27 @@ export async function POST(request: NextRequest) {
   };
 
   await upsertDatabasePost(post);
+  return NextResponse.json({ ok: true, post });
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json(
+      {
+        error:
+          'Nao autorizado. Configure ADMIN_TOKEN nas variaveis de ambiente da aplicacao no Dokploy e use exatamente esse valor no editor.'
+      },
+      { status: 401 }
+    );
+  }
+
+  const body = (await request.json()) as Partial<BlogPost> & { slug?: string };
+
+  if (!body.slug) {
+    return NextResponse.json({ error: 'Slug obrigatorio.' }, { status: 400 });
+  }
+
+  const post = await updateDatabasePost(body.slug, body);
   return NextResponse.json({ ok: true, post });
 }
 

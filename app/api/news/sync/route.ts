@@ -35,7 +35,7 @@ async function syncNews(request: NextRequest) {
   const posts = await fetchRelevantNews(16);
 
   for (const post of posts) {
-    await upsertDatabasePost(post);
+    await upsertDatabasePost({ ...post, published: false, featured: false }, { publishedDefault: false });
   }
 
   return NextResponse.json({

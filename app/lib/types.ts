@@ -17,6 +17,9 @@ export type BlogPost = {
     label: string;
     href: string;
   }>;
+  published?: boolean;
+  featured?: boolean;
+  sortOrder?: number;
   sourceUrl?: string;
   sourceName?: string;
 };
