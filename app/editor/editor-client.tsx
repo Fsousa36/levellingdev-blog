@@ -12,6 +12,8 @@ type ApiState = {
 type StatusState = {
   adminTokenConfigured: boolean;
   databaseConfigured: boolean;
+  databaseReachable: boolean;
+  databaseError: string | null;
 };
 
 const emptyPost = {
@@ -45,6 +47,8 @@ export function EditorClient() {
           setMessage('ADMIN_TOKEN ainda nao esta configurado nas variaveis de ambiente da aplicacao no Dokploy.');
         } else if (!data.databaseConfigured) {
           setMessage('ADMIN_TOKEN existe, mas DATABASE_URL ainda nao esta configurada na aplicacao.');
+        } else if (!data.databaseReachable) {
+          setMessage(`DATABASE_URL existe, mas o banco nao respondeu: ${data.databaseError}`);
         }
       })
       .catch(() => {
@@ -161,8 +165,12 @@ export function EditorClient() {
           </div>
           <div className="rounded-lg border border-white/10 bg-black/25 p-4">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">DATABASE_URL</p>
-            <p className={`mt-2 text-sm font-semibold ${status?.databaseConfigured ? 'text-mint' : 'text-amber'}`}>
-              {status?.databaseConfigured ? 'Banco conectado' : 'Banco nao configurado na aplicacao'}
+            <p className={`mt-2 text-sm font-semibold ${status?.databaseReachable ? 'text-mint' : 'text-amber'}`}>
+              {status?.databaseReachable
+                ? 'Banco conectado'
+                : status?.databaseConfigured
+                  ? 'Banco configurado, mas sem conexao'
+                  : 'Banco nao configurado na aplicacao'}
             </p>
           </div>
         </div>

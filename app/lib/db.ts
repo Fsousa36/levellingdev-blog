@@ -2,11 +2,12 @@ import { Pool } from 'pg';
 import type { BlogPost } from './types';
 
 const connectionString = process.env.DATABASE_URL;
+const useSsl = process.env.DATABASE_SSL === 'true';
 
 const pool = connectionString
   ? new Pool({
       connectionString,
-      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false }
+      ssl: useSsl ? { rejectUnauthorized: false } : false
     })
   : null;
 
@@ -14,6 +15,32 @@ let initialized = false;
 
 export function hasDatabase() {
   return Boolean(pool);
+}
+
+export async function getDatabaseHealth() {
+  if (!pool) {
+    return {
+      configured: false,
+      reachable: false,
+      error: 'DATABASE_URL nao configurada.'
+    };
+  }
+
+  try {
+    await pool.query('select 1');
+
+    return {
+      configured: true,
+      reachable: true,
+      error: null
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      error: error instanceof Error ? error.message : 'Falha desconhecida ao conectar no banco.'
+    };
+  }
 }
 
 export async function ensureDatabase() {
@@ -71,12 +98,16 @@ export async function getDatabasePosts() {
     return [];
   }
 
-  await ensureDatabase();
-  const result = await pool.query(
-    `select * from posts where published = true order by created_at desc, id desc limit 80`
-  );
+  try {
+    await ensureDatabase();
+    const result = await pool.query(
+      `select * from posts where published = true order by created_at desc, id desc limit 80`
+    );
 
-  return result.rows.map(rowToPost);
+    return result.rows.map(rowToPost);
+  } catch {
+    return [];
+  }
 }
 
 export async function getDatabasePostBySlug(slug: string) {
@@ -84,9 +115,13 @@ export async function getDatabasePostBySlug(slug: string) {
     return null;
   }
 
-  await ensureDatabase();
-  const result = await pool.query(`select * from posts where slug = $1 and published = true limit 1`, [slug]);
-  return result.rows[0] ? rowToPost(result.rows[0]) : null;
+  try {
+    await ensureDatabase();
+    const result = await pool.query(`select * from posts where slug = $1 and published = true limit 1`, [slug]);
+    return result.rows[0] ? rowToPost(result.rows[0]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function upsertDatabasePost(post: BlogPost) {
