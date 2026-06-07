@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -68,11 +67,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <head>
-        <Script
+        <meta name="google-adsense-account" content="ca-pub-3403699259545593" />
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3403699259545593"
           crossOrigin="anonymous"
-          strategy="beforeInteractive"
         />
       </head>
       <body className={`${inter.variable} ${jetBrainsMono.variable} min-h-screen font-sans antialiased`}>
