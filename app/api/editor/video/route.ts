@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorized } from '../../../lib/auth';
 import { getPostBySlug } from '../../../lib/blog';
-import { updateDatabasePost } from '../../../lib/db';
-import { generateImageWithProvider, type ImageProvider } from '../../../lib/ai-providers';
+import { buildVideoPrompt } from '../../../lib/ai-providers';
 
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
   }
 
-  const { slug, provider = 'pollinations' } = (await request.json()) as { slug?: string; provider?: ImageProvider };
+  const { slug } = (await request.json()) as { slug?: string };
 
   if (!slug) {
     return NextResponse.json({ error: 'Slug obrigatorio.' }, { status: 400 });
@@ -21,11 +20,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Post nao encontrado.' }, { status: 404 });
   }
 
-  const generated = await generateImageWithProvider(post, provider);
-  const updated = await updateDatabasePost(slug, {
-    image: generated.image,
-    imageAlt: generated.imageAlt
-  });
-
-  return NextResponse.json({ ok: true, prompt: generated.prompt, post: updated });
+  return NextResponse.json({ ok: true, video: buildVideoPrompt(post) });
 }

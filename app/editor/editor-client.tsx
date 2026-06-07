@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { Eye, EyeOff, ImagePlus, PencilLine, RefreshCw, Save, Star, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, FileVideo, ImagePlus, PencilLine, RefreshCw, Save, Star, Trash2 } from 'lucide-react';
 import type { BlogPost } from '../lib/types';
 
 type ApiState = {
@@ -29,6 +29,8 @@ export function EditorClient() {
   const [state, setState] = useState<ApiState | null>(null);
   const [status, setStatus] = useState<StatusState | null>(null);
   const [message, setMessage] = useState('');
+  const [textProvider, setTextProvider] = useState('local');
+  const [imageProvider, setImageProvider] = useState('pollinations');
   const [form, setForm] = useState(emptyPost);
 
   useEffect(() => {
@@ -171,7 +173,7 @@ export function EditorClient() {
       setMessage('Reescrevendo em PT-BR com texto editorial proprio...');
       await request('/api/editor/rewrite', {
         method: 'POST',
-        body: JSON.stringify({ slug })
+        body: JSON.stringify({ slug, provider: textProvider })
       });
       setMessage('Post reescrito e revisado.');
       await loadPosts();
@@ -185,12 +187,24 @@ export function EditorClient() {
       setMessage('Gerando imagem editorial para o post...');
       await request('/api/editor/image', {
         method: 'POST',
-        body: JSON.stringify({ slug })
+        body: JSON.stringify({ slug, provider: imageProvider })
       });
       setMessage('Imagem editorial gerada.');
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao gerar imagem.');
+    }
+  }
+
+  async function generateVideoPrompt(slug: string) {
+    try {
+      const data = await request('/api/editor/video', {
+        method: 'POST',
+        body: JSON.stringify({ slug })
+      });
+      setMessage(`Prompt de video: ${data.video.prompt}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao gerar prompt de video.');
     }
   }
 
@@ -245,6 +259,41 @@ export function EditorClient() {
           </button>
         </div>
         {message ? <p className="mt-4 text-sm leading-6 text-mint">{message}</p> : null}
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+        <h2 className="text-2xl font-semibold text-white">Provedores de IA</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-300">
+          Escolha qual API sera usada para reescrever textos e gerar imagens. Se uma chave nao estiver configurada no
+          Dokploy, o editor mostra o erro sem derrubar o site.
+        </p>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-slate-200">
+            Correcao, traducao e expansao
+            <select
+              value={textProvider}
+              onChange={(event) => setTextProvider(event.target.value)}
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
+            >
+              <option value="local">Local sem API</option>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-slate-200">
+            Imagens editoriais
+            <select
+              value={imageProvider}
+              onChange={(event) => setImageProvider(event.target.value)}
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
+            >
+              <option value="pollinations">Fallback gratuito</option>
+              <option value="openai">OpenAI Images</option>
+              <option value="gemini">Gemini Nano Banana</option>
+            </select>
+          </label>
+        </div>
       </section>
 
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
@@ -348,6 +397,14 @@ export function EditorClient() {
                     >
                       <ImagePlus className="h-4 w-4" />
                       Gerar imagem
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => generateVideoPrompt(post.slug)}
+                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-mint/50"
+                    >
+                      <FileVideo className="h-4 w-4" />
+                      Prompt video
                     </button>
                     <a className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-cyan hover:text-white" href={`/blog/${post.slug}`}>
                       Abrir post

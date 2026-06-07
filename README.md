@@ -60,6 +60,28 @@ https://levelingdev.com.br/api/news/sync?token=um-token-longo-e-secreto
 Sugestao: executar a cada 6 ou 12 horas. O sincronizador usa fontes reais como OpenAI News, GitHub Blog/Changelog,
 Vercel, web.dev e PostgreSQL News. Ele nao inventa noticias: cada post gerado inclui link para a fonte original.
 
+## Provedores de IA no editor
+
+O editor permite reescrever, corrigir, traduzir, expandir artigos e gerar imagens editoriais. Configure somente os
+provedores que quiser usar:
+
+```txt
+OPENAI_API_KEY=
+OPENAI_TEXT_MODEL=gpt-5-mini
+OPENAI_IMAGE_MODEL=gpt-image-1
+
+GEMINI_API_KEY=
+GEMINI_TEXT_MODEL=gemini-2.5-flash
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+
+DEEPSEEK_API_KEY=
+DEEPSEEK_TEXT_MODEL=deepseek-chat
+
+RUNWAY_API_KEY=
+```
+
+Sem chave, o editor continua funcionando com reescrita local e imagem por fallback gratuito.
+
 ## Estrutura principal
 
 ```txt
