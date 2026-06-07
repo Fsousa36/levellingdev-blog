@@ -14,7 +14,7 @@ const jetBrainsMono = JetBrains_Mono({
   display: 'swap'
 });
 
-const siteUrl = 'https://levellingdev.com.br';
+const siteUrl = 'https://levelingdev.com.br';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

@@ -1,4 +1,4 @@
-const siteUrl = 'https://levellingdev.com.br';
+const siteUrl = 'https://levelingdev.com.br';
 
 export function GET() {
   return new Response(`User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, {

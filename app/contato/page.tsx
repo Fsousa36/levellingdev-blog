@@ -24,8 +24,8 @@ export default function ContactPage() {
         </p>
         <div className="mt-8 rounded-lg border border-white/10 bg-black/25 p-5">
           <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Email editorial</p>
-          <a className="mt-2 block text-lg font-semibold text-cyan hover:text-white" href="mailto:contato@levellingdev.com.br">
-            contato@levellingdev.com.br
+          <a className="mt-2 block text-lg font-semibold text-cyan hover:text-white" href="mailto:contato@levelingdev.com.br">
+            contato@levelingdev.com.br
           </a>
         </div>
       </section>

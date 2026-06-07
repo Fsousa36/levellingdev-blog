@@ -1,4 +1,4 @@
-const siteUrl = 'https://levellingdev.com.br';
+const siteUrl = 'https://levelingdev.com.br';
 
 const routes = [
   '',

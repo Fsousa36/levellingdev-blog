@@ -7,7 +7,7 @@ Blog tecnologico em Next.js App Router com Tailwind CSS, preparado para Docker/D
 O arquivo `ads.txt` deve ficar em `public/ads.txt` no Next.js. Tudo dentro de `public` e servido na raiz do dominio, entao em producao ele ficara acessivel em:
 
 ```txt
-https://levellingdev.com.br/ads.txt
+https://levelingdev.com.br/ads.txt
 ```
 
 Conteudo configurado:
