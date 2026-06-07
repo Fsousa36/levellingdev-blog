@@ -81,6 +81,8 @@ RUNWAY_API_KEY=
 ```
 
 Sem chave, o editor continua funcionando com reescrita local e imagem por fallback gratuito.
+No editor, tambem e possivel informar manualmente um ID de modelo. Isso permite usar qualquer modelo liberado pela sua
+conta/plano, sem alterar codigo.
 
 ## Estrutura principal
 

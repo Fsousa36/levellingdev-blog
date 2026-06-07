@@ -9,7 +9,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
   }
 
-  const { slug, provider = 'local' } = (await request.json()) as { slug?: string; provider?: TextProvider };
+  const { slug, provider = 'local', model } = (await request.json()) as {
+    slug?: string;
+    provider?: TextProvider;
+    model?: string;
+  };
 
   if (!slug) {
     return NextResponse.json({ error: 'Slug obrigatorio.' }, { status: 400 });
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Post nao encontrado.' }, { status: 404 });
   }
 
-  const rewritten = await rewriteWithProvider(post, provider);
+  const rewritten = await rewriteWithProvider(post, provider, model?.trim() || undefined);
   await updateDatabasePost(slug, rewritten);
 
   return NextResponse.json({ ok: true, post: rewritten });

@@ -31,6 +31,8 @@ export function EditorClient() {
   const [message, setMessage] = useState('');
   const [textProvider, setTextProvider] = useState('local');
   const [imageProvider, setImageProvider] = useState('pollinations');
+  const [textModel, setTextModel] = useState('');
+  const [imageModel, setImageModel] = useState('');
   const [form, setForm] = useState(emptyPost);
 
   useEffect(() => {
@@ -173,7 +175,7 @@ export function EditorClient() {
       setMessage('Reescrevendo em PT-BR com texto editorial proprio...');
       await request('/api/editor/rewrite', {
         method: 'POST',
-        body: JSON.stringify({ slug, provider: textProvider })
+        body: JSON.stringify({ slug, provider: textProvider, model: textModel })
       });
       setMessage('Post reescrito e revisado.');
       await loadPosts();
@@ -187,7 +189,7 @@ export function EditorClient() {
       setMessage('Gerando imagem editorial para o post...');
       await request('/api/editor/image', {
         method: 'POST',
-        body: JSON.stringify({ slug, provider: imageProvider })
+        body: JSON.stringify({ slug, provider: imageProvider, model: imageModel })
       });
       setMessage('Imagem editorial gerada.');
       await loadPosts();
@@ -268,31 +270,53 @@ export function EditorClient() {
           Dokploy, o editor mostra o erro sem derrubar o site.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-slate-200">
-            Correcao, traducao e expansao
-            <select
-              value={textProvider}
-              onChange={(event) => setTextProvider(event.target.value)}
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
-            >
-              <option value="local">Local sem API</option>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Gemini</option>
-              <option value="deepseek">DeepSeek</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-medium text-slate-200">
-            Imagens editoriais
-            <select
-              value={imageProvider}
-              onChange={(event) => setImageProvider(event.target.value)}
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
-            >
-              <option value="pollinations">Fallback gratuito</option>
-              <option value="openai">OpenAI Images</option>
-              <option value="gemini">Gemini Nano Banana</option>
-            </select>
-          </label>
+          <div className="grid gap-3">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Correcao, traducao e expansao
+              <select
+                value={textProvider}
+                onChange={(event) => setTextProvider(event.target.value)}
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
+              >
+                <option value="local">Local sem API</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Modelo de texto opcional
+              <input
+                value={textModel}
+                onChange={(event) => setTextModel(event.target.value)}
+                placeholder="Ex: gpt-5-mini, gemini-2.5-flash, deepseek-chat"
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+          </div>
+          <div className="grid gap-3">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Imagens editoriais
+              <select
+                value={imageProvider}
+                onChange={(event) => setImageProvider(event.target.value)}
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
+              >
+                <option value="pollinations">Fallback gratuito</option>
+                <option value="openai">OpenAI Images</option>
+                <option value="gemini">Gemini Nano Banana</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Modelo de imagem opcional
+              <input
+                value={imageModel}
+                onChange={(event) => setImageModel(event.target.value)}
+                placeholder="Ex: gpt-image-1, gemini-2.5-flash-image"
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+          </div>
         </div>
       </section>
 

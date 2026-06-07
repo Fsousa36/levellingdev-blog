@@ -9,7 +9,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
   }
 
-  const { slug, provider = 'pollinations' } = (await request.json()) as { slug?: string; provider?: ImageProvider };
+  const { slug, provider = 'pollinations', model } = (await request.json()) as {
+    slug?: string;
+    provider?: ImageProvider;
+    model?: string;
+  };
 
   if (!slug) {
     return NextResponse.json({ error: 'Slug obrigatorio.' }, { status: 400 });
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Post nao encontrado.' }, { status: 404 });
   }
 
-  const generated = await generateImageWithProvider(post, provider);
+  const generated = await generateImageWithProvider(post, provider, model?.trim() || undefined);
   const updated = await updateDatabasePost(slug, {
     image: generated.image,
     imageAlt: generated.imageAlt

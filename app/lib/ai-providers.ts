@@ -49,7 +49,7 @@ URL da fonte: ${post.sourceUrl ?? post.externalLinks[0]?.href ?? 'sem url'}
 `.trim();
 }
 
-async function callOpenAIText(prompt: string) {
+async function callOpenAIText(prompt: string, modelOverride?: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -63,7 +63,7 @@ async function callOpenAIText(prompt: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini',
+      model: modelOverride || process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini',
       input: prompt
     })
   });
@@ -76,14 +76,14 @@ async function callOpenAIText(prompt: string) {
   return data.output_text as string;
 }
 
-async function callGeminiText(prompt: string) {
+async function callGeminiText(prompt: string, modelOverride?: string) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY nao configurada.');
   }
 
-  const model = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const model = modelOverride || process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
@@ -102,7 +102,7 @@ async function callGeminiText(prompt: string) {
   return data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? '').join('') ?? '';
 }
 
-async function callDeepSeekText(prompt: string) {
+async function callDeepSeekText(prompt: string, modelOverride?: string) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey) {
@@ -116,7 +116,7 @@ async function callDeepSeekText(prompt: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: process.env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
+      model: modelOverride || process.env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
       messages: [
         { role: 'system', content: 'Responda somente JSON valido.' },
         { role: 'user', content: prompt }
@@ -133,7 +133,7 @@ async function callDeepSeekText(prompt: string) {
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-export async function rewriteWithProvider(post: BlogPost, provider: TextProvider) {
+export async function rewriteWithProvider(post: BlogPost, provider: TextProvider, modelOverride?: string) {
   if (provider === 'local') {
     return rewritePostForPtBr(post);
   }
@@ -141,10 +141,10 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
   const prompt = buildRewritePrompt(post);
   const raw =
     provider === 'openai'
-      ? await callOpenAIText(prompt)
+      ? await callOpenAIText(prompt, modelOverride)
       : provider === 'gemini'
-        ? await callGeminiText(prompt)
-        : await callDeepSeekText(prompt);
+        ? await callGeminiText(prompt, modelOverride)
+        : await callDeepSeekText(prompt, modelOverride);
   const parsed = extractJson(raw);
 
   return {
@@ -159,7 +159,7 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
   } satisfies BlogPost;
 }
 
-export async function generateImageWithProvider(post: BlogPost, provider: ImageProvider) {
+export async function generateImageWithProvider(post: BlogPost, provider: ImageProvider, modelOverride?: string) {
   const fallback = generateEditorialImage(post);
 
   if (provider === 'pollinations') {
@@ -180,7 +180,7 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
+        model: modelOverride || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
         prompt: fallback.prompt,
         size: '1024x1024'
       })
@@ -205,7 +205,7 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
     throw new Error('GEMINI_API_KEY nao configurada.');
   }
 
-  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  const model = modelOverride || process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
