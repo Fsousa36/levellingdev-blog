@@ -27,6 +27,14 @@ docker build -t levellingdev-blog .
 docker run --rm -p 3000:3000 levellingdev-blog
 ```
 
+## Google Analytics
+
+Para ativar GA4, configure a variavel de ambiente no Dokploy:
+
+```txt
+NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
+```
+
 ## Estrutura principal
 
 ```txt

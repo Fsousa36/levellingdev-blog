@@ -1,36 +1,13 @@
 import Link from 'next/link';
-import { ArrowRight, Cpu, Layers3, Sparkles } from 'lucide-react';
+import { ArrowRight, Cpu, ExternalLink, Layers3, Sparkles } from 'lucide-react';
+import { TopicLab } from './components/topic-lab';
+import { posts } from './data/posts';
 
-const posts = [
-  {
-    slug: 'low-code-com-ia-para-desenvolvedores',
-    title: 'Low-Code com IA: como acelerar entregas sem perder engenharia',
-    excerpt:
-      'Um guia prático para combinar automações, agentes e revisão técnica em fluxos de desenvolvimento reais.',
-    category: 'Low-Code',
-    readTime: '7 min'
-  },
-  {
-    slug: 'arquitetura-de-agentes-ia',
-    title: 'Arquitetura de agentes de IA para produtos SaaS',
-    excerpt:
-      'Como pensar em contexto, ferramentas, memória, segurança e custos antes de colocar agentes em produção.',
-    category: 'IA',
-    readTime: '9 min'
-  },
-  {
-    slug: 'docker-nextjs-vps-dokploy',
-    title: 'Deploy de Next.js em VPS com Docker e Dokploy',
-    excerpt:
-      'Configuração standalone, imagem leve e checklist para publicar aplicações modernas fora de plataformas serverless.',
-    category: 'DevOps',
-    readTime: '6 min'
-  }
-];
+const siteUrl = 'https://levelingdev.com.br';
 
 function Header() {
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/82 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/86 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
         <Link href="/" className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan/30 bg-cyan/10 text-cyan">
@@ -38,15 +15,21 @@ function Header() {
           </span>
           <span>
             <strong className="block text-base font-semibold text-white">LevellingDev</strong>
-            <span className="text-xs text-slate-400">IA, código e automação</span>
+            <span className="text-xs text-slate-400">IA, codigo e automacao</span>
           </span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
-          <Link href="/blog/low-code-com-ia-para-desenvolvedores" className="hover:text-white">
+          <Link href="/" className="hover:text-white">
+            Home
+          </Link>
+          <Link href="#artigos" className="hover:text-white">
             Artigos
           </Link>
           <Link href="/politica-de-privacidade" className="hover:text-white">
             Privacidade
+          </Link>
+          <Link href="/termos-de-uso" className="hover:text-white">
+            Termos
           </Link>
           <Link href="/contato" className="hover:text-white">
             Contato
@@ -57,87 +40,130 @@ function Header() {
   );
 }
 
-function AdSidebar() {
+function Footer() {
   return (
-    <aside className="lg:sticky lg:top-24">
-      <div className="rounded-lg border border-dashed border-cyan/35 bg-white/[0.03] p-5 text-center shadow-glow">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan">Publicidade</p>
-        <div className="mt-4 flex min-h-72 items-center justify-center rounded-md border border-white/10 bg-black/25 px-4">
-          <p className="text-sm leading-6 text-slate-300">
-            [Espaco reservado para anuncio Google AdSense - Sidebar]
-          </p>
+    <footer className="border-t border-white/10 px-5 py-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
+        <p>LevellingDev publica guias originais sobre IA, low-code, seguranca e deploy moderno.</p>
+        <div className="flex flex-wrap gap-4">
+          <Link href="/politica-de-privacidade" className="hover:text-white">
+            Politica de Privacidade
+          </Link>
+          <Link href="/termos-de-uso" className="hover:text-white">
+            Termos de Uso
+          </Link>
+          <Link href="/contato" className="hover:text-white">
+            Contato
+          </Link>
         </div>
       </div>
-    </aside>
+    </footer>
   );
 }
 
 export default function Home() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'LevellingDev',
+    url: siteUrl,
+    description:
+      'Blog sobre inteligencia artificial aplicada, low-code, desenvolvimento de software, seguranca e deploy em VPS.',
+    blogPost: posts.map((post) => ({
+      '@type': 'BlogPosting',
+      headline: post.title,
+      url: `${siteUrl}/blog/${post.slug}`,
+      datePublished: '2026-06-07',
+      image: post.image,
+      author: {
+        '@type': 'Organization',
+        name: 'LevellingDev'
+      }
+    }))
+  };
+
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Header />
+
       <section className="border-b border-white/10">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[1fr_360px] lg:py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[1fr_420px] lg:py-20">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-mint/25 bg-mint/10 px-3 py-1 text-sm text-mint">
               <Sparkles className="h-4 w-4" />
-              Guias praticos para devs que constroem com IA
+              Conteudo humano para devs que trabalham com IA
             </div>
             <h1 className="mt-7 max-w-4xl text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
-              Suba de nivel em desenvolvimento, automacao e produtos inteligentes.
+              Engenharia moderna sem hype barato: IA, low-code, seguranca e deploy na vida real.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              O LevellingDev reune tutoriais de Low-Code, IA aplicada, Docker, arquitetura SaaS e boas praticas para
-              transformar ideias em sistemas prontos para producao.
+              O LevellingDev transforma pesquisas, pratica de desenvolvimento e operacao de produtos em guias que da
+              para ler com calma, aplicar no projeto e revisar com criterio.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/blog/low-code-com-ia-para-desenvolvedores"
+                href={`/blog/${posts[0].slug}`}
                 className="inline-flex items-center gap-2 rounded-lg bg-cyan px-5 py-3 text-sm font-semibold text-ink transition hover:bg-white"
               >
-                Ler artigo inicial
+                Comecar pelo guia de IA
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/contato"
+              <a
+                href="https://survey.stackoverflow.co/2025/ai"
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:border-cyan/60 hover:bg-white/5"
               >
-                Falar com o Leveling Dev
-              </Link>
+                Ver pesquisa usada
+                <ExternalLink className="h-4 w-4" />
+              </a>
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-            <div className="flex items-center gap-3 text-mint">
-              <Layers3 className="h-5 w-5" />
-              <span className="text-sm font-semibold uppercase tracking-[0.18em]">Stack editorial</span>
-            </div>
-            <div className="mt-8 space-y-5">
-              {['Next.js App Router', 'IA Generativa', 'Low-Code consciente', 'Docker em VPS'].map((item) => (
-                <div key={item} className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <span className="text-slate-200">{item}</span>
-                  <span className="h-2 w-2 rounded-full bg-cyan" />
-                </div>
-              ))}
+
+          <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] shadow-glow">
+            <img
+              src="https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80"
+              alt="Pessoa programando em notebook com codigo na tela"
+              className="h-64 w-full object-cover"
+            />
+            <div className="p-6">
+              <div className="flex items-center gap-3 text-mint">
+                <Layers3 className="h-5 w-5" />
+                <span className="text-sm font-semibold uppercase tracking-[0.18em]">Linha editorial</span>
+              </div>
+              <div className="mt-6 grid gap-3 text-sm text-slate-300">
+                {['Agentes de IA com revisao humana', 'Low-code com governanca', 'Seguranca em codigo gerado por IA', 'Next.js, Docker e VPS'].map((item) => (
+                  <div key={item} className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <span>{item}</span>
+                    <span className="h-2 w-2 rounded-full bg-cyan" />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-14 lg:grid-cols-[1fr_320px]">
-        <div>
-          <div className="mb-7 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan">Ultimos posts</p>
-              <h2 className="mt-3 text-3xl font-semibold text-white">Tutoriais e analises</h2>
-            </div>
-          </div>
-          <div className="grid gap-5 md:grid-cols-2">
-            {posts.map((post) => (
-              <Link
-                key={post.slug}
-                href={`/blog/${post.slug}`}
-                className="group rounded-lg border border-white/10 bg-panel/72 p-6 transition hover:-translate-y-1 hover:border-cyan/45 hover:bg-white/[0.06]"
-              >
+      <section id="artigos" className="mx-auto max-w-7xl px-5 py-14">
+        <div className="mb-8 max-w-2xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan">Artigos principais</p>
+          <h2 className="mt-3 text-3xl font-semibold text-white">Assuntos atuais, escritos do zero</h2>
+          <p className="mt-4 leading-7 text-slate-300">
+            Cada card abre uma pagina completa, com contexto, checklist, links de referencia e texto reescrito em voz
+            propria para nao parecer copia de relatorio.
+          </p>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          {posts.map((post) => (
+            <Link
+              key={post.slug}
+              href={`/blog/${post.slug}`}
+              className="group overflow-hidden rounded-lg border border-white/10 bg-panel/72 transition hover:-translate-y-1 hover:border-cyan/45 hover:bg-white/[0.06]"
+            >
+              <img src={post.image} alt={post.imageAlt} className="h-56 w-full object-cover" />
+              <div className="p-6">
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span className="rounded-full border border-white/10 px-3 py-1">{post.category}</span>
                   <span>{post.readTime}</span>
@@ -145,13 +171,34 @@ export default function Home() {
                 <h3 className="mt-5 text-xl font-semibold leading-snug text-white group-hover:text-cyan">
                   {post.title}
                 </h3>
-                <p className="mt-4 text-sm leading-6 text-slate-300">{post.excerpt}</p>
-              </Link>
-            ))}
-          </div>
+                <p className="mt-4 text-sm leading-6 text-slate-300">{post.description}</p>
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan">
+                  Ler artigo completo
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </div>
+            </Link>
+          ))}
         </div>
-        <AdSidebar />
       </section>
+
+      <section className="border-y border-white/10 bg-white/[0.025]">
+        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-12 md:grid-cols-3">
+          {[
+            ['Pesquisa', 'Temas escolhidos a partir de sinais de mercado, pesquisas de devs e documentacao tecnica.'],
+            ['Pratica', 'Cada texto termina em checklist para voce aplicar no projeto sem se perder no hype.'],
+            ['SEO limpo', 'Rotas estaticas, sitemap, robots, metadados e conteudo com intencao clara de busca.']
+          ].map(([title, copy]) => (
+            <div key={title} className="rounded-lg border border-white/10 bg-black/20 p-5">
+              <h3 className="font-semibold text-white">{title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-300">{copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <TopicLab />
+      <Footer />
     </main>
   );
 }

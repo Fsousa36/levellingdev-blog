@@ -1,18 +1,13 @@
+import { posts } from '../data/posts';
+
 const siteUrl = 'https://levelingdev.com.br';
 
-const routes = [
-  '',
-  '/blog/low-code-com-ia-para-desenvolvedores',
-  '/blog/arquitetura-de-agentes-ia',
-  '/blog/docker-nextjs-vps-dokploy',
-  '/politica-de-privacidade',
-  '/termos-de-uso',
-  '/contato'
-];
+const routes = ['', '/politica-de-privacidade', '/termos-de-uso', '/contato'];
 
 export function GET() {
   const lastModified = '2026-06-07T00:00:00.000Z';
-  const urls = routes
+  const allRoutes = [...routes, ...posts.map((post) => `/blog/${post.slug}`)];
+  const urls = allRoutes
     .map((route) => {
       const priority = route === '' ? '1.0' : '0.8';
 
@@ -20,9 +15,12 @@ export function GET() {
     })
     .join('');
 
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`, {
-    headers: {
-      'Content-Type': 'application/xml; charset=utf-8'
+  return new Response(
+    `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`,
+    {
+      headers: {
+        'Content-Type': 'application/xml; charset=utf-8'
+      }
     }
-  });
+  );
 }
