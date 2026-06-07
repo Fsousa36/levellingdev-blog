@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Clock3, ExternalLink } from 'lucide-react';
-import { getPostBySlug, posts } from '../../data/posts';
+import { getPostBySlug } from '../../lib/blog';
 
 const siteUrl = 'https://levelingdev.com.br';
+
+export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{
@@ -14,7 +16,7 @@ type PageProps = {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
 
   if (!post) {
     return {};
@@ -50,12 +52,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export function generateStaticParams() {
-  return posts.map((post) => ({ slug: post.slug }));
+  return [];
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
 
   if (!post) {
     notFound();

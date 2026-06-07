@@ -35,6 +35,31 @@ Para ativar GA4, configure a variavel de ambiente no Dokploy:
 NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
 ```
 
+## Editor e noticias automaticas
+
+O painel fica em:
+
+```txt
+https://levelingdev.com.br/editor
+```
+
+Para criar posts dinamicos e sincronizar noticias reais por RSS, configure no Dokploy:
+
+```txt
+DATABASE_URL=postgresql://user:password@host:5432/database
+DATABASE_SSL=false
+ADMIN_TOKEN=um-token-longo-e-secreto
+```
+
+Depois, no Dokploy, crie um agendamento/cron chamando:
+
+```txt
+https://levelingdev.com.br/api/news/sync?token=um-token-longo-e-secreto
+```
+
+Sugestao: executar a cada 6 ou 12 horas. O sincronizador usa fontes reais como OpenAI News, GitHub Blog/Changelog,
+Vercel, web.dev e PostgreSQL News. Ele nao inventa noticias: cada post gerado inclui link para a fonte original.
+
 ## Estrutura principal
 
 ```txt

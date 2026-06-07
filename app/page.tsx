@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { ArrowRight, Cpu, ExternalLink, Layers3, Sparkles } from 'lucide-react';
 import { TopicLab } from './components/topic-lab';
-import { posts } from './data/posts';
+import { getAllPosts } from './lib/blog';
 
 const siteUrl = 'https://levelingdev.com.br';
+
+export const dynamic = 'force-dynamic';
 
 function Header() {
   return (
@@ -61,7 +63,8 @@ function Footer() {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const posts = await getAllPosts();
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
@@ -133,7 +136,7 @@ export default function Home() {
                 <span className="text-sm font-semibold uppercase tracking-[0.18em]">Linha editorial</span>
               </div>
               <div className="mt-6 grid gap-3 text-sm text-slate-300">
-                {['Agentes de IA com revisao humana', 'Low-code com governanca', 'Seguranca em codigo gerado por IA', 'Next.js, Docker e VPS'].map((item) => (
+              {['Agentes de IA com revisão humana', 'Low-code com governança', 'Segurança em código gerado por IA', 'Next.js, Docker e VPS'].map((item) => (
                   <div key={item} className="flex items-center justify-between border-b border-white/10 pb-3">
                     <span>{item}</span>
                     <span className="h-2 w-2 rounded-full bg-cyan" />

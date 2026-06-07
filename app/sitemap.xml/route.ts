@@ -1,11 +1,14 @@
-import { posts } from '../data/posts';
+import { getAllPosts } from '../lib/blog';
 
 const siteUrl = 'https://levelingdev.com.br';
 
 const routes = ['', '/politica-de-privacidade', '/termos-de-uso', '/contato'];
 
-export function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
   const lastModified = '2026-06-07T00:00:00.000Z';
+  const posts = await getAllPosts();
   const allRoutes = [...routes, ...posts.map((post) => `/blog/${post.slug}`)];
   const urls = allRoutes
     .map((route) => {

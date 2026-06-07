@@ -1,0 +1,242 @@
+'use client';
+
+import { FormEvent, useEffect, useState } from 'react';
+import { RefreshCw, Save, Trash2 } from 'lucide-react';
+import type { BlogPost } from '../lib/types';
+
+type ApiState = {
+  database: boolean;
+  posts: BlogPost[];
+};
+
+const emptyPost = {
+  title: '',
+  description: '',
+  category: 'Programacao',
+  image: '',
+  externalUrl: ''
+};
+
+export function EditorClient() {
+  const [token, setToken] = useState('');
+  const [state, setState] = useState<ApiState | null>(null);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState(emptyPost);
+
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem('levelingdev-admin-token');
+
+    if (savedToken) {
+      setToken(savedToken);
+    }
+  }, []);
+
+  async function request(path: string, init?: RequestInit) {
+    const response = await fetch(path, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-token': token,
+        ...(init?.headers ?? {})
+      }
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Erro inesperado.');
+    }
+
+    return data;
+  }
+
+  async function loadPosts() {
+    try {
+      window.localStorage.setItem('levelingdev-admin-token', token);
+      setMessage('Carregando posts...');
+      const data = (await request('/api/editor/posts')) as ApiState;
+      setState(data);
+      setMessage(data.database ? 'Editor conectado ao PostgreSQL.' : 'Sem DATABASE_URL: somente leitura dos posts estaticos.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao carregar.');
+    }
+  }
+
+  async function syncNews() {
+    try {
+      setMessage('Buscando noticias reais nas fontes configuradas...');
+      const data = await request('/api/news/sync', { method: 'POST' });
+      setMessage(`Sincronizacao concluida: ${data.imported} posts importados/atualizados.`);
+      await loadPosts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao sincronizar.');
+    }
+  }
+
+  async function createPost(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      const externalLinks = form.externalUrl
+        ? [
+            {
+              label: 'Fonte ou referencia',
+              href: form.externalUrl
+            }
+          ]
+        : [];
+
+      await request('/api/editor/posts', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          category: form.category,
+          image: form.image,
+          imageAlt: `Imagem editorial sobre ${form.title}`,
+          sections: [
+            {
+              heading: 'Resumo',
+              body: [form.description]
+            },
+            {
+              heading: 'Contexto para leitores',
+              body: [
+                'Este post foi criado pelo editor do LevellingDev e pode ser expandido com tutorial, exemplos, comandos e referencias tecnicas.',
+                'Antes de publicar como guia definitivo, revise comandos, links externos e impactos de seguranca.'
+              ]
+            }
+          ],
+          checklist: ['Revisar links.', 'Adicionar exemplos praticos.', 'Testar comandos antes de publicar.'],
+          externalLinks
+        })
+      });
+      setForm(emptyPost);
+      setMessage('Post criado com sucesso.');
+      await loadPosts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao criar post.');
+    }
+  }
+
+  async function deletePost(slug: string) {
+    try {
+      await request(`/api/editor/posts?slug=${encodeURIComponent(slug)}`, { method: 'DELETE' });
+      setMessage('Post removido.');
+      await loadPosts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao remover post.');
+    }
+  }
+
+  return (
+    <div className="grid gap-8">
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+        <label className="grid gap-2 text-sm font-medium text-slate-200">
+          Token de administrador
+          <input
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            type="password"
+            placeholder="ADMIN_TOKEN configurado no Dokploy"
+            className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+          />
+        </label>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={loadPosts}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-cyan px-4 text-sm font-semibold text-ink transition hover:bg-white"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Entrar / atualizar
+          </button>
+          <button
+            type="button"
+            onClick={syncNews}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:border-cyan/50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Buscar noticias agora
+          </button>
+        </div>
+        {message ? <p className="mt-4 text-sm leading-6 text-mint">{message}</p> : null}
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+        <h2 className="text-2xl font-semibold text-white">Criar post manual</h2>
+        <form onSubmit={createPost} className="mt-5 grid gap-4">
+          <input
+            value={form.title}
+            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+            required
+            placeholder="Titulo"
+            className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+          />
+          <textarea
+            value={form.description}
+            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+            required
+            rows={5}
+            placeholder="Resumo humanizado do post"
+            className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+          />
+          <div className="grid gap-4 md:grid-cols-3">
+            <input
+              value={form.category}
+              onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+              placeholder="Categoria"
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+            <input
+              value={form.image}
+              onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))}
+              placeholder="URL da imagem"
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+            <input
+              value={form.externalUrl}
+              onChange={(event) => setForm((current) => ({ ...current, externalUrl: event.target.value }))}
+              placeholder="Link de fonte/referencia"
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+          </div>
+          <button
+            type="submit"
+            className="inline-flex min-h-11 w-fit items-center gap-2 rounded-lg bg-mint px-4 text-sm font-semibold text-ink transition hover:bg-white"
+          >
+            <Save className="h-4 w-4" />
+            Salvar post
+          </button>
+        </form>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+        <h2 className="text-2xl font-semibold text-white">Posts publicados</h2>
+        <div className="mt-5 grid gap-3">
+          {state?.posts.map((post) => (
+            <div key={post.slug} className="rounded-lg border border-white/10 bg-black/25 p-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan">{post.category}</p>
+                  <h3 className="mt-2 font-semibold text-white">{post.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{post.description}</p>
+                  <a className="mt-3 inline-block text-sm text-cyan hover:text-white" href={`/blog/${post.slug}`}>
+                    Abrir post
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deletePost(post.slug)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-400/30 px-3 text-sm text-red-300 transition hover:bg-red-400/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Remover
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

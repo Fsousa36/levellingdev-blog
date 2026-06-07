@@ -1,25 +1,6 @@
-export type BlogPost = {
-  slug: string;
-  title: string;
-  description: string;
-  category: string;
-  date: string;
-  readTime: string;
-  image: string;
-  imageAlt: string;
-  keywords: string[];
-  sections: Array<{
-    heading: string;
-    body: string[];
-  }>;
-  checklist: string[];
-  externalLinks: Array<{
-    label: string;
-    href: string;
-  }>;
-};
+import type { BlogPost } from '../lib/types';
 
-export const posts: BlogPost[] = [
+export const staticPosts: BlogPost[] = [
   {
     slug: 'agentes-de-ia-no-desenvolvimento',
     title: 'Agentes de IA no desenvolvimento: onde eles ajudam e onde ainda precisam de adulto na sala',
@@ -234,6 +215,4 @@ export const posts: BlogPost[] = [
   }
 ];
 
-export function getPostBySlug(slug: string) {
-  return posts.find((post) => post.slug === slug);
-}
+export const posts = staticPosts;
