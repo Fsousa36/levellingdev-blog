@@ -13,7 +13,13 @@ export async function POST(request: NextRequest) {
 
 async function syncNews(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          'Nao autorizado. Configure ADMIN_TOKEN nas variaveis de ambiente da aplicacao no Dokploy e use exatamente esse valor no editor ou no cron.'
+      },
+      { status: 401 }
+    );
   }
 
   if (!hasDatabase()) {

@@ -7,7 +7,13 @@ import { slugify } from '../../../lib/news';
 
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          'Nao autorizado. Configure ADMIN_TOKEN nas variaveis de ambiente da aplicacao no Dokploy e use exatamente esse valor no editor.'
+      },
+      { status: 401 }
+    );
   }
 
   return NextResponse.json({ database: hasDatabase(), posts: await getAllPosts() });
@@ -15,7 +21,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          'Nao autorizado. Configure ADMIN_TOKEN nas variaveis de ambiente da aplicacao no Dokploy e use exatamente esse valor no editor.'
+      },
+      { status: 401 }
+    );
   }
 
   const body = (await request.json()) as Partial<BlogPost>;
@@ -62,7 +74,13 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          'Nao autorizado. Configure ADMIN_TOKEN nas variaveis de ambiente da aplicacao no Dokploy e use exatamente esse valor no editor.'
+      },
+      { status: 401 }
+    );
   }
 
   const slug = request.nextUrl.searchParams.get('slug');

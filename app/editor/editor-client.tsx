@@ -9,6 +9,11 @@ type ApiState = {
   posts: BlogPost[];
 };
 
+type StatusState = {
+  adminTokenConfigured: boolean;
+  databaseConfigured: boolean;
+};
+
 const emptyPost = {
   title: '',
   description: '',
@@ -20,6 +25,7 @@ const emptyPost = {
 export function EditorClient() {
   const [token, setToken] = useState('');
   const [state, setState] = useState<ApiState | null>(null);
+  const [status, setStatus] = useState<StatusState | null>(null);
   const [message, setMessage] = useState('');
   const [form, setForm] = useState(emptyPost);
 
@@ -29,6 +35,21 @@ export function EditorClient() {
     if (savedToken) {
       setToken(savedToken);
     }
+
+    fetch('/api/editor/status')
+      .then((response) => response.json())
+      .then((data: StatusState) => {
+        setStatus(data);
+
+        if (!data.adminTokenConfigured) {
+          setMessage('ADMIN_TOKEN ainda nao esta configurado nas variaveis de ambiente da aplicacao no Dokploy.');
+        } else if (!data.databaseConfigured) {
+          setMessage('ADMIN_TOKEN existe, mas DATABASE_URL ainda nao esta configurada na aplicacao.');
+        }
+      })
+      .catch(() => {
+        setMessage('Nao foi possivel ler o status do editor.');
+      });
   }, []);
 
   async function request(path: string, init?: RequestInit) {
@@ -131,6 +152,21 @@ export function EditorClient() {
   return (
     <div className="grid gap-8">
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+        <div className="mb-5 grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">ADMIN_TOKEN</p>
+            <p className={`mt-2 text-sm font-semibold ${status?.adminTokenConfigured ? 'text-mint' : 'text-red-300'}`}>
+              {status?.adminTokenConfigured ? 'Configurado na aplicacao' : 'Nao configurado na aplicacao'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">DATABASE_URL</p>
+            <p className={`mt-2 text-sm font-semibold ${status?.databaseConfigured ? 'text-mint' : 'text-amber'}`}>
+              {status?.databaseConfigured ? 'Banco conectado' : 'Banco nao configurado na aplicacao'}
+            </p>
+          </div>
+        </div>
+
         <label className="grid gap-2 text-sm font-medium text-slate-200">
           Token de administrador
           <input
