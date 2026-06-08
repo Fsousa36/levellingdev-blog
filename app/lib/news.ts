@@ -55,7 +55,6 @@ const keywords = [
   'github',
   'vercel',
   'vps',
-  'ia',
   'inteligencia artificial',
   'inteligência artificial',
   'programacao',
@@ -69,6 +68,33 @@ const keywords = [
   'segurança'
 ];
 
+const blockedTopics = [
+  'netflix',
+  'suspense',
+  'white lotus',
+  'elite',
+  'citro',
+  'carro',
+  'automovel',
+  'automóvel',
+  'calor extremo',
+  'sobrevivencia humana',
+  'sobrevivência humana',
+  'amizade com caos'
+];
+
+function fixEncoding(value: string) {
+  if (!/[ÃÂ�]/.test(value)) {
+    return value;
+  }
+
+  try {
+    return Buffer.from(value, 'latin1').toString('utf8');
+  } catch {
+    return value;
+  }
+}
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (!value) {
     return [];
@@ -78,15 +104,17 @@ function asArray<T>(value: T | T[] | undefined): T[] {
 }
 
 function stripHtml(value = '') {
-  return value
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#8211;|&#8212;/g, '-')
-    .replace(/&#8220;|&#8221;|&quot;/g, '"')
-    .replace(/&#8216;|&#8217;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  return fixEncoding(
+    value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&#8211;|&#8212;/g, '-')
+      .replace(/&#8220;|&#8221;|&quot;/g, '"')
+      .replace(/&#8216;|&#8217;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 function isBrazilianSource(source: string) {
@@ -231,7 +259,13 @@ export function slugify(value: string) {
 
 function matchesTopic(item: FeedItem) {
   const haystack = `${item.title} ${item.summary ?? ''} ${item.source}`.toLowerCase();
-  return keywords.some((keyword) => haystack.includes(keyword));
+  const normalized = haystack.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (blockedTopics.some((topic) => normalized.includes(topic.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))) {
+    return false;
+  }
+
+  return keywords.some((keyword) => normalized.includes(keyword.normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
 }
 
 function portugueseTitle(item: FeedItem) {
