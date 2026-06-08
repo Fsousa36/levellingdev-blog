@@ -23,4 +23,5 @@ export type BlogPost = {
   sortOrder?: number;
   sourceUrl?: string;
   sourceName?: string;
+  sourceImageUrl?: string;
 };

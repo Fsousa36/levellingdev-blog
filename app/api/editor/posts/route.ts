@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
     featured: false,
     sortOrder: 0,
     sourceUrl: body.sourceUrl?.trim() || undefined,
-    sourceName: body.sourceName?.trim() || undefined
+    sourceName: body.sourceName?.trim() || undefined,
+    sourceImageUrl: body.sourceImageUrl?.trim() || body.sourceUrl?.trim() || undefined
   };
 
   await upsertDatabasePost(post, { publishedDefault: false });

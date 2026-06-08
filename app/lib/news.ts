@@ -145,14 +145,10 @@ function buildPost(item: FeedItem): BlogPost {
       'Transformar a novidade em tutorial apenas se houver aplicacao pratica.',
       'Atualizar documentacao interna quando a mudanca afetar fluxo de trabalho.'
     ],
-    externalLinks: [
-      {
-        label: `Fonte original: ${item.source}`,
-        href: item.link
-      }
-    ],
+    externalLinks: [],
     sourceUrl: item.link,
-    sourceName: item.source
+    sourceName: item.source,
+    sourceImageUrl: item.link
   };
 }
 

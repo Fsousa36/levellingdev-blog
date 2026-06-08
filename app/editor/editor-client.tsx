@@ -37,6 +37,7 @@ type PostForm = {
   content: string;
   category: string;
   image: string;
+  sourceImageUrl: string;
   videoUrl: string;
   externalUrl: string;
   keywords: string;
@@ -48,6 +49,7 @@ const emptyPost: PostForm = {
   content: '',
   category: 'Programacao',
   image: '',
+  sourceImageUrl: '',
   videoUrl: '',
   externalUrl: '',
   keywords: ''
@@ -219,6 +221,7 @@ export function EditorClient() {
       content: postToContent(post),
       category: post.category,
       image: post.image,
+      sourceImageUrl: post.sourceImageUrl ?? post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
       videoUrl: post.videoUrl ?? '',
       externalUrl: post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
       keywords: post.keywords.join(', ')
@@ -259,6 +262,7 @@ export function EditorClient() {
         category: form.category,
         image: form.image,
         imageAlt: `Imagem editorial sobre ${form.title}`,
+        sourceImageUrl: form.sourceImageUrl || form.externalUrl || undefined,
         videoUrl: form.videoUrl || undefined,
         keywords: form.keywords
           .split(',')
@@ -333,6 +337,20 @@ export function EditorClient() {
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao gerar imagem.');
+    }
+  }
+
+  async function fetchImageFromSource(slug: string, sourceImageUrl?: string) {
+    try {
+      setMessage('Buscando imagem diretamente no link da fonte...');
+      await request('/api/editor/source-image', {
+        method: 'POST',
+        body: JSON.stringify({ slug, sourceImageUrl })
+      });
+      setMessage('Imagem encontrada na fonte e salva no rascunho.');
+      await loadPosts();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao buscar imagem da fonte.');
     }
   }
 
@@ -564,6 +582,17 @@ export function EditorClient() {
               />
             </label>
             <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Link da fonte para buscar imagem
+              <input
+                value={form.sourceImageUrl}
+                onChange={(event) => setField('sourceImageUrl', event.target.value)}
+                placeholder="Link usado somente pelo editor para procurar og:image"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Upload de imagem
               <input
                 type="file"
@@ -572,6 +601,15 @@ export function EditorClient() {
                 className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink"
               />
             </label>
+            <button
+              type="button"
+              onClick={() => editingSlug && fetchImageFromSource(editingSlug, form.sourceImageUrl)}
+              disabled={!editingSlug}
+              className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan/30 px-3 text-sm font-semibold text-cyan transition hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Buscar imagem da fonte
+            </button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
@@ -665,6 +703,10 @@ export function EditorClient() {
                     <button type="button" onClick={() => generateImage(post.slug)} className="editor-button">
                       <ImagePlus className="h-4 w-4" />
                       Gerar imagem
+                    </button>
+                    <button type="button" onClick={() => fetchImageFromSource(post.slug)} className="editor-button">
+                      <Link2 className="h-4 w-4" />
+                      Imagem da fonte
                     </button>
                     <button type="button" onClick={() => generateVideoPrompt(post.slug)} className="editor-button">
                       <FileVideo className="h-4 w-4" />

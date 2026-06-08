@@ -87,14 +87,9 @@ export function rewritePostForPtBr(post: BlogPost): BlogPost {
       'Registrar aprendizados em documentacao interna.',
       'Transformar em tutorial apenas quando houver aplicacao pratica.'
     ],
-    externalLinks: sourceUrl
-      ? [
-          {
-            label: `Fonte original${post.sourceName ? `: ${post.sourceName}` : ''}`,
-            href: sourceUrl
-          }
-        ]
-      : post.externalLinks
+    externalLinks: post.externalLinks,
+    sourceUrl,
+    sourceImageUrl: post.sourceImageUrl ?? sourceUrl
   };
 }
 
