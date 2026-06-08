@@ -29,6 +29,8 @@ type StatusState = {
   databaseError: string | null;
 };
 
+type SettingsState = Record<string, boolean>;
+
 type PostForm = {
   title: string;
   summary: string;
@@ -50,6 +52,28 @@ const emptyPost: PostForm = {
   externalUrl: '',
   keywords: ''
 };
+
+const apiFields = [
+  ['OPENAI_API_KEY', 'OpenAI API key'],
+  ['GEMINI_API_KEY', 'Gemini API key'],
+  ['ANTHROPIC_API_KEY', 'Claude / Anthropic API key'],
+  ['DEEPSEEK_API_KEY', 'DeepSeek API key'],
+  ['QWEN_API_KEY', 'Qwen API key'],
+  ['QWEN_BASE_URL', 'Qwen base URL'],
+  ['OPENCODE_API_KEY', 'OpenCode API key'],
+  ['OPENCODE_BASE_URL', 'OpenCode base URL']
+] as const;
+
+const modelFields = [
+  ['OPENAI_TEXT_MODEL', 'OpenAI texto'],
+  ['OPENAI_IMAGE_MODEL', 'OpenAI imagem'],
+  ['GEMINI_TEXT_MODEL', 'Gemini texto'],
+  ['GEMINI_IMAGE_MODEL', 'Gemini imagem'],
+  ['ANTHROPIC_TEXT_MODEL', 'Claude texto'],
+  ['DEEPSEEK_TEXT_MODEL', 'DeepSeek texto'],
+  ['QWEN_TEXT_MODEL', 'Qwen texto'],
+  ['OPENCODE_TEXT_MODEL', 'OpenCode texto']
+] as const;
 
 function postToContent(post: BlogPost) {
   return post.sections.flatMap((section) => section.body).join('\n\n');
@@ -81,6 +105,9 @@ export function EditorClient() {
   const [imageModel, setImageModel] = useState('');
   const [form, setForm] = useState<PostForm>(emptyPost);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [providerTab, setProviderTab] = useState<'modelos' | 'chaves'>('modelos');
+  const [apiSettings, setApiSettings] = useState<Record<string, string>>({});
+  const [configuredSettings, setConfiguredSettings] = useState<SettingsState>({});
 
   const editingLabel = useMemo(() => (editingSlug ? 'Atualizar rascunho' : 'Salvar rascunho'), [editingSlug]);
 
@@ -134,10 +161,33 @@ export function EditorClient() {
       const data = (await request('/api/editor/posts')) as ApiState;
       setState(data);
       setAuthenticated(true);
+      await loadSettings();
       setMessage(data.database ? 'Editor conectado ao PostgreSQL.' : 'Sem DATABASE_URL: somente leitura dos posts estaticos.');
     } catch (error) {
       setAuthenticated(false);
       setMessage(error instanceof Error ? error.message : 'Erro ao carregar.');
+    }
+  }
+
+  async function loadSettings() {
+    const data = (await request('/api/editor/settings')) as { configured: SettingsState };
+    setConfiguredSettings(data.configured);
+  }
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    try {
+      const data = (await request('/api/editor/settings', {
+        method: 'POST',
+        body: JSON.stringify(apiSettings)
+      })) as { configured: SettingsState };
+
+      setConfiguredSettings(data.configured);
+      setApiSettings({});
+      setMessage('Chaves e modelos salvos no banco. Agora o editor pode usar essas APIs.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao salvar chaves.');
     }
   }
 
@@ -342,70 +392,113 @@ export function EditorClient() {
   );
 
   if (!authenticated) {
-    return <div className="grid gap-8">{loginCard}</div>;
+    return <div className="grid gap-5">{loginCard}</div>;
   }
 
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-5">
       {loginCard}
 
-      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-        <h2 className="text-2xl font-semibold text-white">Provedores de IA</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Escolha a API para correcao, traducao, expansao e imagem. As chaves ficam nas variaveis de ambiente da
-          aplicacao no Dokploy.
-        </p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div className="grid gap-3">
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Texto, resumo e editorial
-              <select
-                value={textProvider}
-                onChange={(event) => setTextProvider(event.target.value)}
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
-              >
-                <option value="local">Local sem API</option>
-                <option value="openai">OpenAI</option>
-                <option value="gemini">Gemini</option>
-                <option value="anthropic">Claude / Anthropic</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="qwen">Qwen</option>
-                <option value="opencode">OpenCode</option>
-              </select>
-            </label>
-            <input
-              value={textModel}
-              onChange={(event) => setTextModel(event.target.value)}
-              placeholder="Modelo: gpt-5-mini, gemini-2.5-flash, claude-sonnet-4-5, deepseek-chat, qwen-plus..."
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Provedores de IA</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Escolha modelos ou salve as chaves na aba Chaves de API. Variáveis do Dokploy continuam tendo prioridade.
+            </p>
           </div>
-          <div className="grid gap-3">
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Imagem editorial
-              <select
-                value={imageProvider}
-                onChange={(event) => setImageProvider(event.target.value)}
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 focus:ring-2"
+          <div className="inline-flex rounded-lg border border-white/10 bg-black/25 p-1">
+            {(['modelos', 'chaves'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setProviderTab(tab)}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  providerTab === tab ? 'bg-cyan text-ink' : 'text-slate-300 hover:text-white'
+                }`}
               >
-                <option value="pollinations">Fallback gratuito</option>
-                <option value="openai">OpenAI Images</option>
-                <option value="gemini">Gemini Nano Banana</option>
-              </select>
-            </label>
-            <input
-              value={imageModel}
-              onChange={(event) => setImageModel(event.target.value)}
-              placeholder="Modelo: gpt-image-1, gemini-2.5-flash-image..."
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
+                {tab === 'modelos' ? 'Modelos' : 'Chaves de API'}
+              </button>
+            ))}
           </div>
         </div>
+        {providerTab === 'modelos' ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="grid gap-2">
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Texto, resumo e editorial
+                <select
+                  value={textProvider}
+                  onChange={(event) => setTextProvider(event.target.value)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="local">Local sem API</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="anthropic">Claude / Anthropic</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="qwen">Qwen</option>
+                  <option value="opencode">OpenCode</option>
+                </select>
+              </label>
+              <input
+                value={textModel}
+                onChange={(event) => setTextModel(event.target.value)}
+                placeholder="Modelo de texto: gpt-5-mini, gemini-2.5-flash, claude-sonnet-4-5..."
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Imagem editorial
+                <select
+                  value={imageProvider}
+                  onChange={(event) => setImageProvider(event.target.value)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="pollinations">Fallback gratuito</option>
+                  <option value="openai">OpenAI Images</option>
+                  <option value="gemini">Gemini Nano Banana</option>
+                </select>
+              </label>
+              <input
+                value={imageModel}
+                onChange={(event) => setImageModel(event.target.value)}
+                placeholder="Modelo de imagem: gpt-image-1, gemini-2.5-flash-image..."
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={saveSettings} className="mt-4 grid gap-3">
+            <div className="grid gap-2 md:grid-cols-2">
+              {[...apiFields, ...modelFields].map(([key, label]) => (
+                <label key={key} className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                  {label}
+                  <input
+                    value={apiSettings[key] ?? ''}
+                    onChange={(event) => setApiSettings((current) => ({ ...current, [key]: event.target.value }))}
+                    type={key.endsWith('_API_KEY') ? 'password' : 'text'}
+                    placeholder={configuredSettings[key] ? 'Configurada. Preencha apenas se quiser trocar.' : key}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              type="submit"
+              className="inline-flex min-h-10 w-fit items-center gap-2 rounded-lg bg-cyan px-4 text-sm font-semibold text-ink transition hover:bg-white"
+            >
+              <Save className="h-4 w-4" />
+              Salvar chaves
+            </button>
+          </form>
+        )}
       </section>
 
-      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold text-white">{editingSlug ? 'Editar post manualmente' : 'Criar post manual'}</h2>
+          <h2 className="text-xl font-semibold text-white">Editor de Post</h2>
           {editingSlug ? (
             <button
               type="button"
@@ -417,90 +510,96 @@ export function EditorClient() {
             </button>
           ) : null}
         </div>
-        <form onSubmit={savePost} className="mt-5 grid gap-4">
+        <form onSubmit={savePost} className="mt-4 grid gap-3">
           <input
             value={form.title}
             onChange={(event) => setField('title', event.target.value)}
             required
             placeholder="Titulo do editorial"
-            className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
-          <textarea
-            value={form.summary}
-            onChange={(event) => setField('summary', event.target.value)}
-            required
-            rows={4}
-            placeholder="Resumo curto para aparecer somente nos cards da Home e SEO"
-            className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-          />
-          <textarea
-            value={form.content}
-            onChange={(event) => setField('content', event.target.value)}
-            rows={12}
-            placeholder="Texto principal completo do editorial. Este conteudo aparece somente na pagina completa do post."
-            className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-          />
-          <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+            Resumo
+            <textarea
+              value={form.summary}
+              onChange={(event) => setField('summary', event.target.value)}
+              required
+              rows={3}
+              placeholder="Resumo curto para aparecer somente nos cards da Home e SEO"
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+            Texto da matéria
+            <textarea
+              value={form.content}
+              onChange={(event) => setField('content', event.target.value)}
+              rows={8}
+              placeholder="Texto principal completo. Este conteudo aparece somente na pagina completa do post."
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+          </label>
+          <div className="grid gap-3 md:grid-cols-2">
             <input
               value={form.category}
               onChange={(event) => setField('category', event.target.value)}
               placeholder="Categoria"
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
             />
             <input
               value={form.keywords}
               onChange={(event) => setField('keywords', event.target.value)}
               placeholder="SEO keywords separadas por virgula"
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
             />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Imagem por URL
               <input
                 value={form.image}
                 onChange={(event) => setField('image', event.target.value)}
                 placeholder="https://..."
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
               />
             </label>
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Upload de imagem
               <input
                 type="file"
                 accept="image/*"
                 onChange={(event) => readFileAsDataUrl(event, 'image')}
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink"
               />
             </label>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Video por URL ou embed
               <input
                 value={form.videoUrl}
                 onChange={(event) => setField('videoUrl', event.target.value)}
                 placeholder="https://youtube.com/... ou arquivo .mp4"
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
               />
             </label>
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Upload de video
               <input
                 type="file"
                 accept="video/*"
                 onChange={(event) => readFileAsDataUrl(event, 'videoUrl')}
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink"
               />
             </label>
           </div>
-          <label className="grid gap-2 text-sm font-medium text-slate-200">
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
             Link de fonte ou referencia
             <input
               value={form.externalUrl}
               onChange={(event) => setField('externalUrl', event.target.value)}
               placeholder="https://fonte-original.com"
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
             />
           </label>
           <button

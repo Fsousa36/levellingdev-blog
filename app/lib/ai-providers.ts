@@ -1,5 +1,6 @@
 import type { BlogPost } from './types';
 import { generateEditorialImage, rewritePostForPtBr } from './editor-tools';
+import { getEditorSetting } from './db';
 
 export type TextProvider = 'local' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'qwen' | 'opencode';
 export type ImageProvider = 'pollinations' | 'openai' | 'gemini';
@@ -49,8 +50,12 @@ URL da fonte: ${post.sourceUrl ?? post.externalLinks[0]?.href ?? 'sem url'}
 `.trim();
 }
 
+async function getConfiguredValue(key: string) {
+  return process.env[key] || (await getEditorSetting(key)) || '';
+}
+
 async function callOpenAIText(prompt: string, modelOverride?: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getConfiguredValue('OPENAI_API_KEY');
 
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY nao configurada.');
@@ -63,7 +68,7 @@ async function callOpenAIText(prompt: string, modelOverride?: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: modelOverride || process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini',
+      model: modelOverride || (await getConfiguredValue('OPENAI_TEXT_MODEL')) || 'gpt-5-mini',
       input: prompt
     })
   });
@@ -84,13 +89,13 @@ async function callOpenAIText(prompt: string, modelOverride?: string) {
 }
 
 async function callGeminiText(prompt: string, modelOverride?: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getConfiguredValue('GEMINI_API_KEY');
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY nao configurada.');
   }
 
-  const model = modelOverride || process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const model = modelOverride || (await getConfiguredValue('GEMINI_TEXT_MODEL')) || 'gemini-2.5-flash';
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
@@ -110,7 +115,7 @@ async function callGeminiText(prompt: string, modelOverride?: string) {
 }
 
 async function callDeepSeekText(prompt: string, modelOverride?: string) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = await getConfiguredValue('DEEPSEEK_API_KEY');
 
   if (!apiKey) {
     throw new Error('DEEPSEEK_API_KEY nao configurada.');
@@ -123,7 +128,7 @@ async function callDeepSeekText(prompt: string, modelOverride?: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: modelOverride || process.env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
+      model: modelOverride || (await getConfiguredValue('DEEPSEEK_TEXT_MODEL')) || 'deepseek-chat',
       messages: [
         { role: 'system', content: 'Responda somente JSON valido.' },
         { role: 'user', content: prompt }
@@ -141,7 +146,7 @@ async function callDeepSeekText(prompt: string, modelOverride?: string) {
 }
 
 async function callAnthropicText(prompt: string, modelOverride?: string) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = await getConfiguredValue('ANTHROPIC_API_KEY');
 
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY nao configurada.');
@@ -155,7 +160,7 @@ async function callAnthropicText(prompt: string, modelOverride?: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: modelOverride || process.env.ANTHROPIC_TEXT_MODEL || 'claude-sonnet-4-5',
+      model: modelOverride || (await getConfiguredValue('ANTHROPIC_TEXT_MODEL')) || 'claude-sonnet-4-5',
       max_tokens: 4000,
       system: 'Responda somente JSON valido.',
       messages: [{ role: 'user', content: prompt }]
@@ -228,17 +233,17 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
           : provider === 'qwen'
             ? await callOpenAICompatibleText({
                 prompt,
-                apiKey: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY,
-                baseUrl: process.env.QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-                model: modelOverride || process.env.QWEN_TEXT_MODEL || 'qwen-plus',
+                apiKey: (await getConfiguredValue('QWEN_API_KEY')) || (await getConfiguredValue('DASHSCOPE_API_KEY')),
+                baseUrl: (await getConfiguredValue('QWEN_BASE_URL')) || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+                model: modelOverride || (await getConfiguredValue('QWEN_TEXT_MODEL')) || 'qwen-plus',
                 providerName: 'QWEN'
               })
             : provider === 'opencode'
               ? await callOpenAICompatibleText({
                   prompt,
-                  apiKey: process.env.OPENCODE_API_KEY,
-                  baseUrl: process.env.OPENCODE_BASE_URL || 'https://api.opencode.ai/v1',
-                  model: modelOverride || process.env.OPENCODE_TEXT_MODEL || 'opencode-chat',
+                  apiKey: await getConfiguredValue('OPENCODE_API_KEY'),
+                  baseUrl: (await getConfiguredValue('OPENCODE_BASE_URL')) || 'https://api.opencode.ai/v1',
+                  model: modelOverride || (await getConfiguredValue('OPENCODE_TEXT_MODEL')) || 'opencode-chat',
                   providerName: 'OPENCODE'
                 })
               : await callDeepSeekText(prompt, modelOverride);
@@ -265,7 +270,7 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
   }
 
   if (provider === 'openai') {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = await getConfiguredValue('OPENAI_API_KEY');
 
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY nao configurada.');
@@ -278,7 +283,7 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: modelOverride || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
+        model: modelOverride || (await getConfiguredValue('OPENAI_IMAGE_MODEL')) || 'gpt-image-1',
         prompt: fallback.prompt,
         size: '1024x1024'
       })
@@ -297,13 +302,13 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
     };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getConfiguredValue('GEMINI_API_KEY');
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY nao configurada.');
   }
 
-  const model = modelOverride || process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  const model = modelOverride || (await getConfiguredValue('GEMINI_IMAGE_MODEL')) || 'gemini-2.5-flash-image';
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
@@ -320,11 +325,14 @@ export async function generateImageWithProvider(post: BlogPost, provider: ImageP
   }
 
   const data = await response.json();
-  const inline = data.candidates?.[0]?.content?.parts?.find((part: { inlineData?: { data?: string } }) => part.inlineData?.data);
+  const inline = data.candidates?.[0]?.content?.parts?.find(
+    (part: { inlineData?: { data?: string }; inline_data?: { data?: string } }) => part.inlineData?.data || part.inline_data?.data
+  );
+  const imageData = inline?.inlineData?.data || inline?.inline_data?.data;
 
   return {
     prompt: fallback.prompt,
-    image: inline?.inlineData?.data ? `data:image/png;base64,${inline.inlineData.data}` : fallback.image,
+    image: imageData ? `data:image/png;base64,${imageData}` : fallback.image,
     imageAlt: fallback.imageAlt
   };
 }

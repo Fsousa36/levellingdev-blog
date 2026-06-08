@@ -1,5 +1,5 @@
 import { staticPosts } from '../data/posts';
-import { getDatabasePostBySlug, getDatabasePosts } from './db';
+import { getDatabasePostBySlug, getDatabasePosts, getEditorDatabasePostBySlug } from './db';
 import type { BlogPost } from './types';
 
 export async function getAllPosts(): Promise<BlogPost[]> {
@@ -10,6 +10,16 @@ export async function getAllPosts(): Promise<BlogPost[]> {
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   const databasePost = await getDatabasePostBySlug(slug);
+
+  if (databasePost) {
+    return databasePost;
+  }
+
+  return staticPosts.find((post) => post.slug === slug) ?? null;
+}
+
+export async function getEditablePostBySlug(slug: string): Promise<BlogPost | null> {
+  const databasePost = await getEditorDatabasePostBySlug(slug);
 
   if (databasePost) {
     return databasePost;

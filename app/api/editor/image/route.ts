@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorized } from '../../../lib/auth';
-import { getPostBySlug } from '../../../lib/blog';
+import { getEditablePostBySlug } from '../../../lib/blog';
 import { updateDatabasePost } from '../../../lib/db';
 import { generateImageWithProvider, type ImageProvider } from '../../../lib/ai-providers';
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Slug obrigatorio.' }, { status: 400 });
   }
 
-  const post = await getPostBySlug(slug);
+  const post = await getEditablePostBySlug(slug);
 
   if (!post) {
     return NextResponse.json({ error: 'Post nao encontrado.' }, { status: 404 });

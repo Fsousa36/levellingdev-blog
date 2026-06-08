@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import type { BlogPost } from './types';
 
 const connectionString = process.env.DATABASE_URL;
@@ -12,6 +13,30 @@ const pool = connectionString
   : null;
 
 let initialized = false;
+
+function getSettingsKey() {
+  return createHash('sha256').update(process.env.ADMIN_TOKEN || 'levelingdev-editor').digest();
+}
+
+function encryptSetting(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', getSettingsKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('base64')}.${tag.toString('base64')}.${encrypted.toString('base64')}`;
+}
+
+function decryptSetting(value: string) {
+  const [ivValue, tagValue, encryptedValue] = value.split('.');
+
+  if (!ivValue || !tagValue || !encryptedValue) {
+    return '';
+  }
+
+  const decipher = createDecipheriv('aes-256-gcm', getSettingsKey(), Buffer.from(ivValue, 'base64'));
+  decipher.setAuthTag(Buffer.from(tagValue, 'base64'));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedValue, 'base64')), decipher.final()]).toString('utf8');
+}
 
 export function hasDatabase() {
   return Boolean(pool);
@@ -77,6 +102,14 @@ export async function ensureDatabase() {
   await pool.query(`alter table posts add column if not exists featured boolean not null default false;`);
   await pool.query(`alter table posts add column if not exists sort_order integer not null default 0;`);
   await pool.query(`alter table posts add column if not exists video_url text;`);
+  await pool.query(`
+    create table if not exists editor_settings (
+      key text primary key,
+      value text not null,
+      secret boolean not null default true,
+      updated_at timestamptz not null default now()
+    );
+  `);
 
   initialized = true;
 }
@@ -143,6 +176,20 @@ export async function getDatabasePostBySlug(slug: string) {
   try {
     await ensureDatabase();
     const result = await pool.query(`select * from posts where slug = $1 and published = true limit 1`, [slug]);
+    return result.rows[0] ? rowToPost(result.rows[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getEditorDatabasePostBySlug(slug: string) {
+  if (!pool) {
+    return null;
+  }
+
+  try {
+    await ensureDatabase();
+    const result = await pool.query(`select * from posts where slug = $1 limit 1`, [slug]);
     return result.rows[0] ? rowToPost(result.rows[0]) : null;
   } catch {
     return null;
@@ -277,4 +324,56 @@ export async function deleteDatabasePost(slug: string) {
 
   await ensureDatabase();
   await pool.query(`delete from posts where slug = $1`, [slug]);
+}
+
+export async function getEditorSetting(key: string) {
+  if (!pool) {
+    return null;
+  }
+
+  await ensureDatabase();
+  const result = await pool.query(`select value, secret from editor_settings where key = $1 limit 1`, [key]);
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return row.secret ? decryptSetting(row.value) : row.value;
+}
+
+export async function getEditorSettingsStatus(keys: string[]) {
+  if (!pool) {
+    return Object.fromEntries(keys.map((key) => [key, false]));
+  }
+
+  await ensureDatabase();
+  const result = await pool.query(`select key from editor_settings where key = any($1::text[])`, [keys]);
+  const configured = new Set(result.rows.map((row) => row.key));
+  return Object.fromEntries(keys.map((key) => [key, configured.has(key) || Boolean(process.env[key])]));
+}
+
+export async function setEditorSettings(settings: Record<string, string>) {
+  if (!pool) {
+    throw new Error('DATABASE_URL nao configurada.');
+  }
+
+  await ensureDatabase();
+
+  for (const [key, value] of Object.entries(settings)) {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    await pool.query(
+      `
+        insert into editor_settings (key, value, secret, updated_at)
+        values ($1, $2, true, now())
+        on conflict (key) do update set value = excluded.value, updated_at = now()
+      `,
+      [key, encryptSetting(trimmed)]
+    );
+  }
 }
