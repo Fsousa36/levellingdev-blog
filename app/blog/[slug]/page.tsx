@@ -175,12 +175,6 @@ export default async function BlogPostPage({ params }: PageProps) {
             </section>
           ))}
 
-          <h2>Checklist para aplicar</h2>
-          <ul>
-            {post.checklist.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
         </div>
 
         <section className="mt-12 rounded-lg border border-white/10 bg-white/[0.035] p-6">
