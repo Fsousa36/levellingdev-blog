@@ -131,6 +131,7 @@ export function EditorClient() {
   const [state, setState] = useState<ApiState | null>(null);
   const [status, setStatus] = useState<StatusState | null>(null);
   const [message, setMessage] = useState('');
+  const [editorMessage, setEditorMessage] = useState('');
   const [textProvider, setTextProvider] = useState('local');
   const [imageProvider, setImageProvider] = useState('pollinations');
   const [textModel, setTextModel] = useState('');
@@ -179,7 +180,14 @@ export function EditorClient() {
         ...(init?.headers ?? {})
       }
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any = {};
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { error: text || 'Resposta invalida do servidor.' };
+    }
 
     if (!response.ok) {
       throw new Error(data.error ?? 'Erro inesperado.');
@@ -340,12 +348,13 @@ export function EditorClient() {
 
   async function createDraftWithAi() {
     try {
+      setEditorMessage('');
       if (!form.title.trim()) {
-        setMessage('Digite um titulo ou tema antes de gerar o editorial com IA.');
+        setEditorMessage('Digite um titulo ou tema antes de gerar o editorial com IA.');
         return;
       }
 
-      setMessage('Criando editorial com IA...');
+      setEditorMessage('Criando editorial com IA...');
       const data = (await request('/api/editor/draft', {
         method: 'POST',
         body: JSON.stringify({
@@ -366,9 +375,9 @@ export function EditorClient() {
         externalUrl: data.draft.sourceUrl || current.externalUrl,
         sourceImageUrl: data.draft.sourceImageUrl || current.sourceImageUrl
       }));
-      setMessage('Editorial criado no formulario. Revise e salve como rascunho.');
+      setEditorMessage('Editorial criado no formulario. Revise e salve como rascunho.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao criar editorial com IA.');
+      setEditorMessage(error instanceof Error ? error.message : 'Erro ao criar editorial com IA.');
     }
   }
 
@@ -677,6 +686,7 @@ export function EditorClient() {
             ) : null}
           </div>
         </div>
+        {editorMessage ? <p className="mt-3 rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2 text-xs leading-5 text-cyan">{editorMessage}</p> : null}
         <form onSubmit={savePost} className="mt-4 grid gap-3">
           <input
             value={form.title}
