@@ -61,21 +61,51 @@ const apiFields = [
   ['ANTHROPIC_API_KEY', 'Claude / Anthropic API key'],
   ['DEEPSEEK_API_KEY', 'DeepSeek API key'],
   ['QWEN_API_KEY', 'Qwen API key'],
-  ['QWEN_BASE_URL', 'Qwen base URL'],
-  ['OPENCODE_API_KEY', 'OpenCode API key'],
-  ['OPENCODE_BASE_URL', 'OpenCode base URL']
+  ['OPENCODE_API_KEY', 'OpenCode API key']
 ] as const;
 
-const modelFields = [
-  ['OPENAI_TEXT_MODEL', 'OpenAI texto'],
-  ['OPENAI_IMAGE_MODEL', 'OpenAI imagem'],
-  ['GEMINI_TEXT_MODEL', 'Gemini texto'],
-  ['GEMINI_IMAGE_MODEL', 'Gemini imagem'],
-  ['ANTHROPIC_TEXT_MODEL', 'Claude texto'],
-  ['DEEPSEEK_TEXT_MODEL', 'DeepSeek texto'],
-  ['QWEN_TEXT_MODEL', 'Qwen texto'],
-  ['OPENCODE_TEXT_MODEL', 'OpenCode texto']
-] as const;
+const textModelPresets: Record<string, Array<{ label: string; value: string }>> = {
+  local: [{ label: 'Local sem API', value: '' }],
+  openai: [
+    { label: 'GPT-4.1 nano - econômico', value: 'gpt-4.1-nano' },
+    { label: 'GPT-4.1 mini - econômico', value: 'gpt-4.1-mini' },
+    { label: 'GPT-5 mini - padrão leve', value: 'gpt-5-mini' }
+  ],
+  gemini: [
+    { label: 'Gemini 2.5 Flash-Lite - free tier/econômico', value: 'gemini-2.5-flash-lite' },
+    { label: 'Gemini 2.5 Flash - rápido', value: 'gemini-2.5-flash' },
+    { label: 'Gemini 2.0 Flash - compatível', value: 'gemini-2.0-flash' }
+  ],
+  anthropic: [
+    { label: 'Claude Haiku 4.5 - econômico', value: 'claude-haiku-4-5' },
+    { label: 'Claude 3.5 Haiku latest - leve', value: 'claude-3-5-haiku-latest' },
+    { label: 'Claude Sonnet 4.5 - melhor qualidade', value: 'claude-sonnet-4-5' }
+  ],
+  deepseek: [
+    { label: 'DeepSeek Chat - econômico', value: 'deepseek-chat' },
+    { label: 'DeepSeek Reasoner - raciocínio', value: 'deepseek-reasoner' }
+  ],
+  qwen: [
+    { label: 'Qwen Turbo - econômico', value: 'qwen-turbo' },
+    { label: 'Qwen Plus - equilibrado', value: 'qwen-plus' },
+    { label: 'Qwen VL Flash - multimodal', value: 'qwen3-vl-flash' }
+  ],
+  opencode: [
+    { label: 'OpenCode auto/default', value: 'opencode-chat' },
+    { label: 'Haiku 4.5 via OpenCode', value: 'claude-haiku-4-5' },
+    { label: 'Gemini Flash via OpenCode', value: 'gemini-2.5-flash' },
+    { label: 'Qwen Plus via OpenCode', value: 'qwen-plus' }
+  ]
+};
+
+const imageModelPresets: Record<string, Array<{ label: string; value: string }>> = {
+  pollinations: [{ label: 'Fallback gratuito automático', value: '' }],
+  openai: [{ label: 'GPT Image 1', value: 'gpt-image-1' }],
+  gemini: [
+    { label: 'Gemini 2.5 Flash Image / Nano Banana', value: 'gemini-2.5-flash-image' },
+    { label: 'Gemini 2.0 Flash Preview Image', value: 'gemini-2.0-flash-preview-image-generation' }
+  ]
+};
 
 function postToContent(post: BlogPost) {
   return post.sections.flatMap((section) => section.body).join('\n\n');
@@ -110,6 +140,8 @@ export function EditorClient() {
   const [providerTab, setProviderTab] = useState<'modelos' | 'chaves'>('modelos');
   const [apiSettings, setApiSettings] = useState<Record<string, string>>({});
   const [configuredSettings, setConfiguredSettings] = useState<SettingsState>({});
+  const [remoteTextModels, setRemoteTextModels] = useState<string[]>([]);
+  const [remoteImageModels, setRemoteImageModels] = useState<string[]>([]);
 
   const editingLabel = useMemo(() => (editingSlug ? 'Atualizar rascunho' : 'Salvar rascunho'), [editingSlug]);
 
@@ -187,7 +219,7 @@ export function EditorClient() {
 
       setConfiguredSettings(data.configured);
       setApiSettings({});
-      setMessage('Chaves e modelos salvos no banco. Agora o editor pode usar essas APIs.');
+      setMessage('Chaves salvas no banco. Agora o editor pode consultar modelos e usar essas APIs.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao salvar chaves.');
     }
@@ -201,6 +233,23 @@ export function EditorClient() {
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao sincronizar.');
+    }
+  }
+
+  async function fetchModels(provider: string, target: 'text' | 'image') {
+    try {
+      setMessage(`Buscando modelos disponiveis em ${provider}...`);
+      const data = (await request(`/api/editor/models?provider=${encodeURIComponent(provider)}`)) as { models: string[] };
+
+      if (target === 'text') {
+        setRemoteTextModels(data.models);
+      } else {
+        setRemoteImageModels(data.models);
+      }
+
+      setMessage(data.models.length ? `Modelos carregados: ${data.models.length}.` : 'A API nao retornou modelos para essa chave.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao buscar modelos.');
     }
   }
 
@@ -286,6 +335,40 @@ export function EditorClient() {
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao salvar post.');
+    }
+  }
+
+  async function createDraftWithAi() {
+    try {
+      if (!form.title.trim()) {
+        setMessage('Digite um titulo ou tema antes de gerar o editorial com IA.');
+        return;
+      }
+
+      setMessage('Criando editorial com IA...');
+      const data = (await request('/api/editor/draft', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: form.title,
+          sourceUrl: form.externalUrl || form.sourceImageUrl || undefined,
+          provider: textProvider,
+          model: textModel.trim() || undefined
+        })
+      })) as { draft: BlogPost };
+
+      setForm((current) => ({
+        ...current,
+        title: data.draft.title || current.title,
+        summary: data.draft.description || current.summary,
+        content: postToContent(data.draft),
+        category: data.draft.category || current.category,
+        keywords: data.draft.keywords.join(', '),
+        externalUrl: data.draft.sourceUrl || current.externalUrl,
+        sourceImageUrl: data.draft.sourceImageUrl || current.sourceImageUrl
+      }));
+      setMessage('Editorial criado no formulario. Revise e salve como rascunho.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao criar editorial com IA.');
     }
   }
 
@@ -459,10 +542,37 @@ export function EditorClient() {
                   <option value="opencode">OpenCode</option>
                 </select>
               </label>
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <select
+                  value={textModel}
+                  onChange={(event) => setTextModel(event.target.value)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="">Usar padrao do provedor</option>
+                  {(textModelPresets[textProvider] ?? []).map((model) => (
+                    <option key={model.value || model.label} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                  {remoteTextModels.map((model) => (
+                    <option key={model} value={model}>
+                      API: {model}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => fetchModels(textProvider, 'text')}
+                  disabled={textProvider === 'local'}
+                  className="rounded-lg border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:border-cyan/50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Puxar modelos
+                </button>
+              </div>
               <input
                 value={textModel}
                 onChange={(event) => setTextModel(event.target.value)}
-                placeholder="Modelo de texto: gpt-5-mini, gemini-2.5-flash, claude-sonnet-4-5..."
+                placeholder="Ou cole um modelo personalizado"
                 className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
               />
             </div>
@@ -479,10 +589,39 @@ export function EditorClient() {
                   <option value="gemini">Gemini Nano Banana</option>
                 </select>
               </label>
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <select
+                  value={imageModel}
+                  onChange={(event) => setImageModel(event.target.value)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="">Usar padrao do provedor</option>
+                  {(imageModelPresets[imageProvider] ?? []).map((model) => (
+                    <option key={model.value || model.label} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                  {remoteImageModels
+                    .filter((model) => /image|imagen|flash/i.test(model))
+                    .map((model) => (
+                      <option key={model} value={model}>
+                        API: {model}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => fetchModels(imageProvider, 'image')}
+                  disabled={imageProvider === 'pollinations'}
+                  className="rounded-lg border border-white/10 px-3 text-xs font-semibold text-slate-200 transition hover:border-cyan/50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Puxar modelos
+                </button>
+              </div>
               <input
                 value={imageModel}
                 onChange={(event) => setImageModel(event.target.value)}
-                placeholder="Modelo de imagem: gpt-image-1, gemini-2.5-flash-image..."
+                placeholder="Ou cole um modelo de imagem personalizado"
                 className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
               />
             </div>
@@ -490,7 +629,7 @@ export function EditorClient() {
         ) : (
           <form onSubmit={saveSettings} className="mt-4 grid gap-3">
             <div className="grid gap-2 md:grid-cols-2">
-              {[...apiFields, ...modelFields].map(([key, label]) => (
+              {apiFields.map(([key, label]) => (
                 <label key={key} className="grid gap-1.5 text-xs font-semibold text-slate-200">
                   {label}
                   <input
@@ -517,16 +656,26 @@ export function EditorClient() {
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-white">Editor de Post</h2>
-          {editingSlug ? (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={resetForm}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200"
+              onClick={createDraftWithAi}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-cyan/30 px-3 text-sm font-semibold text-cyan transition hover:bg-cyan/10"
             >
-              <X className="h-4 w-4" />
-              Cancelar edicao
+              <PencilLine className="h-4 w-4" />
+              Criar editorial com IA
             </button>
-          ) : null}
+            {editingSlug ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200"
+              >
+                <X className="h-4 w-4" />
+                Cancelar edicao
+              </button>
+            ) : null}
+          </div>
         </div>
         <form onSubmit={savePost} className="mt-4 grid gap-3">
           <input

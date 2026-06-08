@@ -50,6 +50,76 @@ URL da fonte: ${post.sourceUrl ?? post.externalLinks[0]?.href ?? 'sem url'}
 `.trim();
 }
 
+function buildDraftPrompt({
+  title,
+  sourceUrl
+}: {
+  title: string;
+  sourceUrl?: string;
+}) {
+  return `
+Voce e editor senior do blog LevellingDev. Crie um editorial original em portugues do Brasil com base no titulo ou tema abaixo.
+
+Regras obrigatorias:
+- Nao invente noticia especifica, numeros, datas, versoes ou anuncio oficial se nao houver fonte.
+- Se houver fonte, preserve o link e use apenas como referencia.
+- Escreva para desenvolvedores, criadores de apps, automacao, IA, no-code, VPS, Docker, banco de dados e deploy.
+- Crie texto humano, claro, tecnico e util.
+- O resumo deve ser curto e servir para card da Home e SEO.
+- O texto principal deve ser completo, sem repetir o resumo.
+- Responda SOMENTE JSON valido no formato:
+{
+  "title": "titulo final",
+  "description": "resumo curto",
+  "category": "categoria",
+  "keywords": ["palavra 1", "palavra 2"],
+  "sections": [{"heading":"subtitulo","body":["paragrafo 1","paragrafo 2"]}],
+  "checklist": ["item 1","item 2","item 3"],
+  "imagePrompt": "prompt de imagem editorial sem texto na imagem"
+}
+
+Tema/titulo: ${title}
+Fonte opcional: ${sourceUrl || 'sem fonte informada'}
+`.trim();
+}
+
+function localDraft(title: string, sourceUrl?: string): BlogPost {
+  const cleanTitle = title.trim();
+
+  return {
+    slug: '',
+    title: cleanTitle,
+    description:
+      'Um guia pratico para entender o tema com foco em aplicacao real, decisao tecnica e proximos passos para desenvolvedores.',
+    category: 'Programacao',
+    date: '',
+    readTime: '6 min',
+    image: '',
+    imageAlt: `Imagem editorial sobre ${cleanTitle}`,
+    keywords: ['desenvolvimento de software', 'inteligencia artificial', 'automacao', 'programacao'],
+    sections: [
+      {
+        heading: 'Contexto',
+        body: [
+          `${cleanTitle} merece ser analisado pelo impacto pratico no trabalho de quem cria, entrega e mantem software.`,
+          'Antes de transformar o tema em decisao tecnica, vale separar promessa, custo, complexidade e risco operacional.'
+        ]
+      },
+      {
+        heading: 'Como aplicar',
+        body: [
+          'Comece por um experimento pequeno, com escopo claro, ambiente controlado e criterio de sucesso definido.',
+          'Se envolver IA, automacao, infraestrutura ou banco de dados, registre limites, custos e pontos de rollback antes de levar para producao.'
+        ]
+      }
+    ],
+    checklist: ['Definir objetivo do teste.', 'Validar custo e seguranca.', 'Documentar resultado antes de publicar.'],
+    externalLinks: sourceUrl ? [{ label: 'Fonte de referencia', href: sourceUrl }] : [],
+    sourceUrl,
+    sourceImageUrl: sourceUrl
+  };
+}
+
 async function getConfiguredValue(key: string) {
   return process.env[key] || (await getEditorSetting(key)) || '';
 }
@@ -259,6 +329,60 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
     sections: parsed.sections ?? post.sections,
     checklist: parsed.checklist ?? post.checklist,
     imageAlt: `Imagem editorial para ${parsed.title ?? post.title}`
+  } satisfies BlogPost;
+}
+
+export async function generateDraftWithProvider({
+  title,
+  sourceUrl,
+  provider,
+  modelOverride
+}: {
+  title: string;
+  sourceUrl?: string;
+  provider: TextProvider;
+  modelOverride?: string;
+}) {
+  if (provider === 'local') {
+    return localDraft(title, sourceUrl);
+  }
+
+  const prompt = buildDraftPrompt({ title, sourceUrl });
+  const raw =
+    provider === 'openai'
+      ? await callOpenAIText(prompt, modelOverride)
+      : provider === 'gemini'
+        ? await callGeminiText(prompt, modelOverride)
+        : provider === 'anthropic'
+          ? await callAnthropicText(prompt, modelOverride)
+          : provider === 'qwen'
+            ? await callOpenAICompatibleText({
+                prompt,
+                apiKey: (await getConfiguredValue('QWEN_API_KEY')) || (await getConfiguredValue('DASHSCOPE_API_KEY')),
+                baseUrl: (await getConfiguredValue('QWEN_BASE_URL')) || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+                model: modelOverride || (await getConfiguredValue('QWEN_TEXT_MODEL')) || 'qwen-plus',
+                providerName: 'QWEN'
+              })
+            : provider === 'opencode'
+              ? await callOpenAICompatibleText({
+                  prompt,
+                  apiKey: await getConfiguredValue('OPENCODE_API_KEY'),
+                  baseUrl: (await getConfiguredValue('OPENCODE_BASE_URL')) || 'https://api.opencode.ai/v1',
+                  model: modelOverride || (await getConfiguredValue('OPENCODE_TEXT_MODEL')) || 'opencode-chat',
+                  providerName: 'OPENCODE'
+                })
+              : await callDeepSeekText(prompt, modelOverride);
+  const parsed = extractJson(raw);
+
+  return {
+    ...localDraft(title, sourceUrl),
+    title: parsed.title ?? title,
+    description: String(parsed.description ?? '').replace(/^(Resumo editorial:\s*)+/i, '').trim(),
+    category: parsed.category ?? 'Programacao',
+    keywords: parsed.keywords ?? ['desenvolvimento de software'],
+    sections: parsed.sections ?? [],
+    checklist: parsed.checklist ?? [],
+    imageAlt: `Imagem editorial para ${parsed.title ?? title}`
   } satisfies BlogPost;
 }
 

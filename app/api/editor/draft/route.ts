@@ -1,0 +1,29 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { isAuthorized } from '../../../lib/auth';
+import { generateDraftWithProvider, type TextProvider } from '../../../lib/ai-providers';
+
+export async function POST(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+  }
+
+  const { title, sourceUrl, provider = 'local', model } = (await request.json()) as {
+    title?: string;
+    sourceUrl?: string;
+    provider?: TextProvider;
+    model?: string;
+  };
+
+  if (!title?.trim()) {
+    return NextResponse.json({ error: 'Informe um titulo ou tema para criar o editorial.' }, { status: 400 });
+  }
+
+  const draft = await generateDraftWithProvider({
+    title: title.trim(),
+    sourceUrl: sourceUrl?.trim() || undefined,
+    provider,
+    modelOverride: model?.trim() || undefined
+  });
+
+  return NextResponse.json({ ok: true, draft });
+}
