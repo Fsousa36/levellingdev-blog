@@ -25,7 +25,6 @@ type SourceDetails = {
 
 export const feedSources: FeedSource[] = [
   { name: 'Tecnoblog', url: 'https://tecnoblog.net/feed/', category: 'Programacao' },
-  { name: 'Canaltech', url: 'https://canaltech.com.br/rss/', category: 'Inteligencia Artificial' },
   { name: 'Olhar Digital', url: 'https://olhardigital.com.br/feed/', category: 'Inteligencia Artificial' },
   { name: 'Diolinux', url: 'https://diolinux.com.br/feed', category: 'Programacao' },
   { name: 'TabNews', url: 'https://www.tabnews.com.br/recentes/rss', category: 'Programacao' }
@@ -81,6 +80,14 @@ const blockedTopics = [
   'sobrevivencia humana',
   'sobrevivência humana',
   'amizade com caos',
+  'jogos de luta',
+  'videogames',
+  'airfryer',
+  'forno eletrico',
+  'forno elétrico',
+  'e-bike',
+  'bicicleta',
+  'monitor ultrawide',
   'casa do dragao',
   'casa do dragão',
   'hbo',
@@ -274,6 +281,13 @@ export function slugify(value: string) {
 function matchesTopic(item: FeedItem) {
   const haystack = `${item.title} ${item.summary ?? ''} ${item.source}`.toLowerCase();
   const normalized = haystack.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const strongAiTopic = /(chatgpt|openai|gemini|nvidia|inteligencia artificial|machine learning|modelo de ia| ia )/.test(
+    ` ${normalized} `
+  );
+
+  if (item.source === 'Olhar Digital' && !strongAiTopic) {
+    return false;
+  }
 
   if (blockedTopics.some((topic) => normalized.includes(topic.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))) {
     return false;
