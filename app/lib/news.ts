@@ -80,7 +80,21 @@ const blockedTopics = [
   'calor extremo',
   'sobrevivencia humana',
   'sobrevivência humana',
-  'amizade com caos'
+  'amizade com caos',
+  'casa do dragao',
+  'casa do dragão',
+  'hbo',
+  'copa do mundo',
+  'bolao',
+  'bolão',
+  'marte',
+  'sonda',
+  'espaconaves',
+  'espaçonaves',
+  'ar-condicionado',
+  'spray que limpa',
+  'citroen',
+  'citroën'
 ];
 
 function fixEncoding(value: string) {
