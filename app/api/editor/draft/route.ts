@@ -7,8 +7,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
   }
 
-  const { title, sourceUrl, provider = 'local', model } = (await request.json()) as {
+  const { title, instruction, sourceUrl, provider = 'local', model } = (await request.json()) as {
     title?: string;
+    instruction?: string;
     sourceUrl?: string;
     provider?: TextProvider;
     model?: string;
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const draft = await generateDraftWithProvider({
       title: title.trim(),
+      instruction: instruction?.trim() || undefined,
       sourceUrl: sourceUrl?.trim() || undefined,
       provider,
       modelOverride: model?.trim() || undefined

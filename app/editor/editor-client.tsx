@@ -41,6 +41,7 @@ type PostForm = {
   videoUrl: string;
   externalUrl: string;
   keywords: string;
+  aiPrompt: string;
 };
 
 const emptyPost: PostForm = {
@@ -52,7 +53,8 @@ const emptyPost: PostForm = {
   sourceImageUrl: '',
   videoUrl: '',
   externalUrl: '',
-  keywords: ''
+  keywords: '',
+  aiPrompt: ''
 };
 
 const apiFields = [
@@ -281,7 +283,8 @@ export function EditorClient() {
       sourceImageUrl: post.sourceImageUrl ?? post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
       videoUrl: post.videoUrl ?? '',
       externalUrl: post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
-      keywords: post.keywords.join(', ')
+      keywords: post.keywords.join(', '),
+      aiPrompt: ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -359,6 +362,7 @@ export function EditorClient() {
         method: 'POST',
         body: JSON.stringify({
           title: form.title,
+          instruction: form.aiPrompt || undefined,
           sourceUrl: form.externalUrl || form.sourceImageUrl || undefined,
           provider: textProvider,
           model: textModel.trim() || undefined
@@ -695,6 +699,16 @@ export function EditorClient() {
             placeholder="Titulo do editorial"
             className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+            Prompt para IA
+            <textarea
+              value={form.aiPrompt}
+              onChange={(event) => setField('aiPrompt', event.target.value)}
+              rows={3}
+              placeholder="Diga exatamente como a IA deve criar a materia: tom, publico, tamanho, topicos obrigatorios, passo a passo, exemplos, restricoes..."
+              className="rounded-lg border border-cyan/20 bg-cyan/5 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+          </label>
           <div className="grid gap-3 lg:grid-cols-2">
             <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Resumo

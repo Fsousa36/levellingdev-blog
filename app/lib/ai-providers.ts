@@ -52,9 +52,11 @@ URL da fonte: ${post.sourceUrl ?? post.externalLinks[0]?.href ?? 'sem url'}
 
 function buildDraftPrompt({
   title,
+  instruction,
   sourceUrl
 }: {
   title: string;
+  instruction?: string;
   sourceUrl?: string;
 }) {
   return `
@@ -66,7 +68,10 @@ Regras obrigatorias:
 - Escreva para desenvolvedores, criadores de apps, automacao, IA, no-code, VPS, Docker, banco de dados e deploy.
 - Crie texto humano, claro, tecnico e util.
 - O resumo deve ser curto e servir para card da Home e SEO.
-- O texto principal deve ser completo, sem repetir o resumo.
+- O texto principal deve ser completo, sem repetir o resumo, com 900 a 1400 palavras.
+- Crie pelo menos 5 secoes, cada uma com 2 a 4 paragrafos.
+- Inclua explicacoes praticas, riscos, boas praticas, exemplos de decisao e proximos passos.
+- Se o tema for tutorial, descreva um fluxo aplicavel mesmo sem comandos especificos inventados.
 - Responda SOMENTE JSON valido no formato:
 {
   "title": "titulo final",
@@ -79,41 +84,90 @@ Regras obrigatorias:
 }
 
 Tema/titulo: ${title}
+Pedido especifico do editor: ${instruction || 'sem pedido especifico'}
 Fonte opcional: ${sourceUrl || 'sem fonte informada'}
 `.trim();
 }
 
-function localDraft(title: string, sourceUrl?: string): BlogPost {
+function localDraft(title: string, sourceUrl?: string, instruction?: string): BlogPost {
   const cleanTitle = title.trim();
+  const lowerTitle = cleanTitle.toLowerCase();
+  const isDeploy = /dokploy|deploy|vps|docker|servidor|postgres|banco/.test(lowerTitle);
 
   return {
     slug: '',
     title: cleanTitle,
     description:
-      'Um guia pratico para entender o tema com foco em aplicacao real, decisao tecnica e proximos passos para desenvolvedores.',
+      `Um guia pratico sobre ${cleanTitle}, com foco em decisao tecnica, configuracao segura e aplicacao real para desenvolvedores.`,
     category: 'Programacao',
     date: '',
-    readTime: '6 min',
+    readTime: '10 min',
     image: '',
     imageAlt: `Imagem editorial sobre ${cleanTitle}`,
-    keywords: ['desenvolvimento de software', 'inteligencia artificial', 'automacao', 'programacao'],
+    keywords: ['desenvolvimento de software', 'inteligencia artificial', 'automacao', 'programacao', 'deploy', 'tutorial'],
     sections: [
       {
-        heading: 'Contexto',
+        heading: 'Pedido editorial aplicado',
         body: [
-          `${cleanTitle} merece ser analisado pelo impacto pratico no trabalho de quem cria, entrega e mantem software.`,
-          'Antes de transformar o tema em decisao tecnica, vale separar promessa, custo, complexidade e risco operacional.'
+          instruction
+            ? `O pedido principal para este rascunho foi: ${instruction}. Use essa direcao para revisar o texto, acrescentar exemplos e ajustar o tom antes de publicar.`
+            : 'Nenhum prompt especifico foi informado. O rascunho foi criado em formato editorial tecnico geral, pronto para ser refinado conforme o publico e o nivel de profundidade desejados.',
+          'Quando o prompt do editor for mais detalhado, a materia tende a ficar mais alinhada com o objetivo. Bons pedidos incluem publico-alvo, nivel tecnico, topicos obrigatorios, pontos que nao devem aparecer e formato esperado.'
         ]
       },
       {
-        heading: 'Como aplicar',
+        heading: 'Contexto e objetivo',
         body: [
-          'Comece por um experimento pequeno, com escopo claro, ambiente controlado e criterio de sucesso definido.',
-          'Se envolver IA, automacao, infraestrutura ou banco de dados, registre limites, custos e pontos de rollback antes de levar para producao.'
+          `${cleanTitle} e um tema que merece ser tratado com calma porque normalmente envolve mais do que seguir uma sequencia de cliques. Para quem desenvolve, publica e mantem aplicacoes, a parte mais importante e entender o impacto no fluxo de trabalho: o que fica mais simples, o que passa a exigir mais controle e quais riscos precisam ser acompanhados desde o inicio.`,
+          'Um bom editorial tecnico nao deve vender a ferramenta como solucao magica. O caminho mais seguro e partir do problema real: publicar aplicacoes com estabilidade, organizar ambientes, reduzir retrabalho e manter previsibilidade quando o projeto cresce. A partir dai, fica mais facil decidir se a abordagem combina com o seu momento.',
+          sourceUrl
+            ? 'Como existe uma fonte de referencia informada, use esse link para validar detalhes especificos, nomes de recursos, mudancas recentes e qualquer informacao sensivel antes de publicar a versao final.'
+            : 'Como nao ha fonte externa informada, este rascunho trabalha com orientacao geral. Antes de publicar, revise nomes de recursos, comandos, versoes e limitacoes na documentacao oficial.'
+        ]
+      },
+      {
+        heading: isDeploy ? 'Como planejar a configuracao' : 'Como transformar o tema em pratica',
+        body: [
+          'Comece definindo o objetivo do tutorial. Em vez de tentar cobrir tudo de uma vez, escolha um resultado concreto: subir uma aplicacao, conectar um banco, criar um fluxo de automacao, testar uma ferramenta de IA ou organizar uma rotina de deploy. Esse recorte deixa o texto mais util e evita que o leitor se perca.',
+          isDeploy
+            ? 'No caso de VPS, Docker e Dokploy, o planejamento deve incluir dominio, SSL, variaveis de ambiente, banco de dados, rede interna, backups e estrategia de rollback. Mesmo quando a interface facilita o processo, a responsabilidade tecnica continua existindo.'
+            : 'Se o tema envolver IA, low-code ou automacao, o planejamento deve incluir limites do modelo, revisao humana, custo por uso, privacidade dos dados e forma de medir se a solucao realmente melhora o fluxo.',
+          'Depois disso, descreva o processo em blocos pequenos. Cada bloco deve responder tres perguntas: o que esta sendo feito, por que isso importa e como verificar se funcionou. Esse formato deixa a materia mais facil de seguir e melhora a qualidade para SEO.'
+        ]
+      },
+      {
+        heading: 'Pontos de atencao antes de publicar',
+        body: [
+          'O primeiro ponto e seguranca. Nunca exponha tokens, senhas, connection strings ou chaves de API no frontend, em prints ou em exemplos copiados diretamente do ambiente real. Quando for necessario mostrar uma configuracao, use valores ficticios e explique onde o leitor deve substituir pelo dado correto.',
+          'O segundo ponto e custo. Ferramentas de IA, servidores VPS, bancos gerenciados e APIs externas podem parecer baratos no comeco, mas crescem conforme uso, trafego e automacao. Um bom editorial deve explicar onde estao os custos recorrentes e quais escolhas ajudam a manter controle.',
+          'O terceiro ponto e manutencao. Uma configuracao que funciona hoje precisa ser atualizada, monitorada e documentada. Se o leitor nao souber como renovar certificado, trocar variavel de ambiente, restaurar backup ou atualizar a aplicacao, ele pode ficar dependente de tentativa e erro.'
+        ]
+      },
+      {
+        heading: 'Fluxo recomendado para o leitor',
+        body: [
+          'A melhor forma de aplicar o conteudo e criar um ambiente de teste antes de mexer no projeto principal. Esse ambiente pode ser uma aplicacao simples, um banco separado ou uma automacao pequena. O importante e validar o caminho sem colocar dados reais em risco.',
+          'Depois do teste, registre os passos que funcionaram, os pontos que deram erro e as configuracoes que precisam ser repetidas. Essa anotacao vira base para o tutorial final e tambem ajuda a criar uma documentacao interna para futuros projetos.',
+          'Por fim, publique apenas depois de revisar a parte tecnica. Se houver comandos, valide cada um. Se houver integracao com API, confira se o provedor ainda usa o mesmo endpoint. Se houver interface visual, confirme se as telas continuam iguais ou parecidas.'
+        ]
+      },
+      {
+        heading: 'Como evoluir esse rascunho',
+        body: [
+          'Este rascunho pode virar uma materia completa com exemplos reais, capturas de tela, links de referencia e uma lista de erros comuns. Para deixar o texto mais forte, adicione um caso pratico: uma aplicacao simples, um deploy real, uma integracao com banco ou um fluxo de IA que resolva uma tarefa especifica.',
+          'Tambem vale incluir uma secao de comparacao. Explique quando essa abordagem faz sentido e quando talvez seja melhor escolher outro caminho. Esse tipo de honestidade melhora a confianca do leitor e evita que o conteudo pareca propaganda.',
+          'A conclusao deve reforcar a decisao tecnica: o que o leitor consegue fazer depois de seguir o guia, quais cuidados continuam importantes e qual e o proximo passo recomendado.'
         ]
       }
     ],
-    checklist: ['Definir objetivo do teste.', 'Validar custo e seguranca.', 'Documentar resultado antes de publicar.'],
+    checklist: [
+      'Validar nomes de recursos e versoes na documentacao oficial.',
+      'Adicionar exemplos reais ou capturas de tela antes de publicar.',
+      'Remover qualquer chave, senha ou dado sensivel do texto.',
+      'Testar comandos e configuracoes em ambiente separado.',
+      'Incluir fonte de referencia quando houver informacao externa.',
+      'Revisar SEO: titulo, resumo, categoria, palavras-chave e links internos.'
+    ],
     externalLinks: sourceUrl ? [{ label: 'Fonte de referencia', href: sourceUrl }] : [],
     sourceUrl,
     sourceImageUrl: sourceUrl
@@ -334,20 +388,22 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
 
 export async function generateDraftWithProvider({
   title,
+  instruction,
   sourceUrl,
   provider,
   modelOverride
 }: {
   title: string;
+  instruction?: string;
   sourceUrl?: string;
   provider: TextProvider;
   modelOverride?: string;
 }) {
   if (provider === 'local') {
-    return localDraft(title, sourceUrl);
+    return localDraft(title, sourceUrl, instruction);
   }
 
-  const prompt = buildDraftPrompt({ title, sourceUrl });
+  const prompt = buildDraftPrompt({ title, instruction, sourceUrl });
   const raw =
     provider === 'openai'
       ? await callOpenAIText(prompt, modelOverride)
@@ -375,7 +431,7 @@ export async function generateDraftWithProvider({
   const parsed = extractJson(raw);
 
   return {
-    ...localDraft(title, sourceUrl),
+    ...localDraft(title, sourceUrl, instruction),
     title: parsed.title ?? title,
     description: String(parsed.description ?? '').replace(/^(Resumo editorial:\s*)+/i, '').trim(),
     category: parsed.category ?? 'Programacao',
