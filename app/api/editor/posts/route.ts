@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const title = body.title?.trim();
 
   if (!title || !body.description?.trim()) {
-    return NextResponse.json({ error: 'Titulo e descricao sao obrigatorios.' }, { status: 400 });
+    return NextResponse.json({ error: 'Titulo e resumo sao obrigatorios.' }, { status: 400 });
   }
 
   const post: BlogPost = {
@@ -66,10 +66,16 @@ export async function POST(request: NextRequest) {
             }
           ],
     checklist: body.checklist ?? ['Revisar fonte.', 'Testar antes de aplicar.', 'Documentar mudancas importantes.'],
-    externalLinks: body.externalLinks ?? []
+    externalLinks: body.externalLinks ?? [],
+    videoUrl: body.videoUrl?.trim() || undefined,
+    published: false,
+    featured: false,
+    sortOrder: 0,
+    sourceUrl: body.sourceUrl?.trim() || undefined,
+    sourceName: body.sourceName?.trim() || undefined
   };
 
-  await upsertDatabasePost(post);
+  await upsertDatabasePost(post, { publishedDefault: false });
   return NextResponse.json({ ok: true, post });
 }
 

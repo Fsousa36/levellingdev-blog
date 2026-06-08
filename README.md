@@ -77,6 +77,17 @@ GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 DEEPSEEK_API_KEY=
 DEEPSEEK_TEXT_MODEL=deepseek-chat
 
+ANTHROPIC_API_KEY=
+ANTHROPIC_TEXT_MODEL=claude-sonnet-4-5
+
+QWEN_API_KEY=
+QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+QWEN_TEXT_MODEL=qwen-plus
+
+OPENCODE_API_KEY=
+OPENCODE_BASE_URL=https://api.opencode.ai/v1
+OPENCODE_TEXT_MODEL=opencode-chat
+
 RUNWAY_API_KEY=
 ```
 

@@ -1,7 +1,7 @@
 import type { BlogPost } from './types';
 import { generateEditorialImage, rewritePostForPtBr } from './editor-tools';
 
-export type TextProvider = 'local' | 'openai' | 'gemini' | 'deepseek';
+export type TextProvider = 'local' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'qwen' | 'opencode';
 export type ImageProvider = 'pollinations' | 'openai' | 'gemini';
 
 function extractJson(value: string) {
@@ -73,7 +73,14 @@ async function callOpenAIText(prompt: string, modelOverride?: string) {
   }
 
   const data = await response.json();
-  return data.output_text as string;
+  return (
+    data.output_text ??
+    data.output
+      ?.flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? [])
+      .map((part: { text?: string }) => part.text ?? '')
+      .join('') ??
+    ''
+  );
 }
 
 async function callGeminiText(prompt: string, modelOverride?: string) {
@@ -133,6 +140,78 @@ async function callDeepSeekText(prompt: string, modelOverride?: string) {
   return data.choices?.[0]?.message?.content ?? '';
 }
 
+async function callAnthropicText(prompt: string, modelOverride?: string) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY nao configurada.');
+  }
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: modelOverride || process.env.ANTHROPIC_TEXT_MODEL || 'claude-sonnet-4-5',
+      max_tokens: 4000,
+      system: 'Responda somente JSON valido.',
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Anthropic falhou: ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  return data.content?.map((part: { text?: string }) => part.text ?? '').join('') ?? '';
+}
+
+async function callOpenAICompatibleText({
+  prompt,
+  apiKey,
+  baseUrl,
+  model,
+  providerName
+}: {
+  prompt: string;
+  apiKey?: string;
+  baseUrl: string;
+  model: string;
+  providerName: string;
+}) {
+  if (!apiKey) {
+    throw new Error(`${providerName}_API_KEY nao configurada.`);
+  }
+
+  const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: 'Responda somente JSON valido.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.4
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`${providerName} falhou: ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
 export async function rewriteWithProvider(post: BlogPost, provider: TextProvider, modelOverride?: string) {
   if (provider === 'local') {
     return rewritePostForPtBr(post);
@@ -144,13 +223,32 @@ export async function rewriteWithProvider(post: BlogPost, provider: TextProvider
       ? await callOpenAIText(prompt, modelOverride)
       : provider === 'gemini'
         ? await callGeminiText(prompt, modelOverride)
-        : await callDeepSeekText(prompt, modelOverride);
+        : provider === 'anthropic'
+          ? await callAnthropicText(prompt, modelOverride)
+          : provider === 'qwen'
+            ? await callOpenAICompatibleText({
+                prompt,
+                apiKey: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY,
+                baseUrl: process.env.QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+                model: modelOverride || process.env.QWEN_TEXT_MODEL || 'qwen-plus',
+                providerName: 'QWEN'
+              })
+            : provider === 'opencode'
+              ? await callOpenAICompatibleText({
+                  prompt,
+                  apiKey: process.env.OPENCODE_API_KEY,
+                  baseUrl: process.env.OPENCODE_BASE_URL || 'https://api.opencode.ai/v1',
+                  model: modelOverride || process.env.OPENCODE_TEXT_MODEL || 'opencode-chat',
+                  providerName: 'OPENCODE'
+                })
+              : await callDeepSeekText(prompt, modelOverride);
   const parsed = extractJson(raw);
+  const cleanDescription = String(parsed.description ?? post.description).replace(/^(Resumo editorial:\s*)+/i, '').trim();
 
   return {
     ...post,
     title: parsed.title ?? post.title,
-    description: parsed.description ?? post.description,
+    description: cleanDescription,
     category: parsed.category ?? post.category,
     keywords: parsed.keywords ?? post.keywords,
     sections: parsed.sections ?? post.sections,

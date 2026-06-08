@@ -55,6 +55,33 @@ export function generateStaticParams() {
   return [];
 }
 
+function getYoutubeEmbedUrl(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (url.hostname.includes('youtube.com')) {
+      const videoId = url.searchParams.get('v');
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+
+    if (url.hostname.includes('youtu.be')) {
+      return `https://www.youtube.com/embed/${url.pathname.replace('/', '')}`;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isDirectVideo(value?: string) {
+  return Boolean(value && (/^data:video\//.test(value) || /\.(mp4|webm|ogg)(\?|$)/i.test(value)));
+}
+
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
   const post = await getPostBySlug(slug);
@@ -62,6 +89,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   if (!post) {
     notFound();
   }
+  const youtubeEmbedUrl = getYoutubeEmbedUrl(post.videoUrl);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -108,6 +136,34 @@ export default async function BlogPostPage({ params }: PageProps) {
         </header>
 
         <img src={post.image} alt={post.imageAlt} className="mt-8 aspect-[16/8] w-full rounded-lg object-cover" />
+
+        {post.videoUrl ? (
+          <section className="mt-8 overflow-hidden rounded-lg border border-white/10 bg-black/25">
+            {youtubeEmbedUrl ? (
+              <iframe
+                src={youtubeEmbedUrl}
+                title={`Video relacionado a ${post.title}`}
+                className="aspect-video w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : isDirectVideo(post.videoUrl) ? (
+              <video controls className="aspect-video w-full bg-black" src={post.videoUrl}>
+                Seu navegador nao suporta a reproducao deste video.
+              </video>
+            ) : (
+              <a
+                href={post.videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-20 items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-cyan transition hover:text-white"
+              >
+                Assistir video relacionado
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
+          </section>
+        ) : null}
 
         <div className="prose prose-lg prose-invert prose-custom mt-10 max-w-none">
           {post.sections.map((section) => (

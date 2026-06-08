@@ -63,6 +63,7 @@ export async function ensureDatabase() {
       sections jsonb not null default '[]'::jsonb,
       checklist jsonb not null default '[]'::jsonb,
       external_links jsonb not null default '[]'::jsonb,
+      video_url text,
       source_url text unique,
       source_name text,
       published boolean not null default true,
@@ -75,6 +76,7 @@ export async function ensureDatabase() {
 
   await pool.query(`alter table posts add column if not exists featured boolean not null default false;`);
   await pool.query(`alter table posts add column if not exists sort_order integer not null default 0;`);
+  await pool.query(`alter table posts add column if not exists video_url text;`);
 
   initialized = true;
 }
@@ -93,6 +95,7 @@ function rowToPost(row: Record<string, any>): BlogPost {
     sections: row.sections ?? [],
     checklist: row.checklist ?? [],
     externalLinks: row.external_links ?? [],
+    videoUrl: row.video_url ?? undefined,
     published: row.published ?? true,
     featured: row.featured ?? false,
     sortOrder: row.sort_order ?? 0,
@@ -156,9 +159,9 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
     `
       insert into posts (
         slug, title, description, category, date_label, read_time, image, image_alt,
-        keywords, sections, checklist, external_links, source_url, source_name, published, updated_at
+        keywords, sections, checklist, external_links, video_url, source_url, source_name, published, updated_at
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,now())
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,now())
       on conflict (slug) do update set
         title = excluded.title,
         description = excluded.description,
@@ -171,6 +174,7 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
         sections = excluded.sections,
         checklist = excluded.checklist,
         external_links = excluded.external_links,
+        video_url = excluded.video_url,
         source_url = excluded.source_url,
         source_name = excluded.source_name,
         updated_at = now()
@@ -188,6 +192,7 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
       JSON.stringify(post.sections),
       JSON.stringify(post.checklist),
       JSON.stringify(post.externalLinks),
+      post.videoUrl ?? null,
       post.sourceUrl ?? null,
       post.sourceName ?? null,
       post.published ?? options?.publishedDefault ?? true
@@ -231,11 +236,12 @@ export async function updateDatabasePost(slug: string, patch: Partial<BlogPost>)
         sections = $10::jsonb,
         checklist = $11::jsonb,
         external_links = $12::jsonb,
-        source_url = $13,
-        source_name = $14,
-        published = $15,
-        featured = $16,
-        sort_order = $17,
+        video_url = $13,
+        source_url = $14,
+        source_name = $15,
+        published = $16,
+        featured = $17,
+        sort_order = $18,
         updated_at = now()
       where slug = $1
     `,
@@ -252,6 +258,7 @@ export async function updateDatabasePost(slug: string, patch: Partial<BlogPost>)
       JSON.stringify(next.sections),
       JSON.stringify(next.checklist),
       JSON.stringify(next.externalLinks),
+      next.videoUrl ?? null,
       next.sourceUrl ?? null,
       next.sourceName ?? null,
       next.published ?? true,

@@ -1,7 +1,20 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-import { Eye, EyeOff, FileVideo, ImagePlus, PencilLine, RefreshCw, Save, Star, Trash2 } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import {
+  Edit3,
+  Eye,
+  EyeOff,
+  FileVideo,
+  ImagePlus,
+  Link2,
+  PencilLine,
+  RefreshCw,
+  Save,
+  Star,
+  Trash2,
+  X
+} from 'lucide-react';
 import type { BlogPost } from '../lib/types';
 
 type ApiState = {
@@ -16,16 +29,49 @@ type StatusState = {
   databaseError: string | null;
 };
 
-const emptyPost = {
+type PostForm = {
+  title: string;
+  summary: string;
+  content: string;
+  category: string;
+  image: string;
+  videoUrl: string;
+  externalUrl: string;
+  keywords: string;
+};
+
+const emptyPost: PostForm = {
   title: '',
-  description: '',
+  summary: '',
+  content: '',
   category: 'Programacao',
   image: '',
-  externalUrl: ''
+  videoUrl: '',
+  externalUrl: '',
+  keywords: ''
 };
+
+function postToContent(post: BlogPost) {
+  return post.sections.flatMap((section) => section.body).join('\n\n');
+}
+
+function buildSections(content: string) {
+  const paragraphs = content
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  return [
+    {
+      heading: 'Editorial completo',
+      body: paragraphs.length > 0 ? paragraphs : ['Texto principal ainda em rascunho.']
+    }
+  ];
+}
 
 export function EditorClient() {
   const [token, setToken] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
   const [state, setState] = useState<ApiState | null>(null);
   const [status, setStatus] = useState<StatusState | null>(null);
   const [message, setMessage] = useState('');
@@ -33,7 +79,10 @@ export function EditorClient() {
   const [imageProvider, setImageProvider] = useState('pollinations');
   const [textModel, setTextModel] = useState('');
   const [imageModel, setImageModel] = useState('');
-  const [form, setForm] = useState(emptyPost);
+  const [form, setForm] = useState<PostForm>(emptyPost);
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
+
+  const editingLabel = useMemo(() => (editingSlug ? 'Atualizar rascunho' : 'Salvar rascunho'), [editingSlug]);
 
   useEffect(() => {
     const savedToken = window.localStorage.getItem('levelingdev-admin-token');
@@ -80,28 +129,69 @@ export function EditorClient() {
 
   async function loadPosts() {
     try {
-      window.localStorage.setItem('levelingdev-admin-token', token);
+      window.localStorage.setItem('levelingdev-admin-token', token.trim());
       setMessage('Carregando posts...');
       const data = (await request('/api/editor/posts')) as ApiState;
       setState(data);
+      setAuthenticated(true);
       setMessage(data.database ? 'Editor conectado ao PostgreSQL.' : 'Sem DATABASE_URL: somente leitura dos posts estaticos.');
     } catch (error) {
+      setAuthenticated(false);
       setMessage(error instanceof Error ? error.message : 'Erro ao carregar.');
     }
   }
 
   async function syncNews() {
     try {
-      setMessage('Buscando noticias reais nas fontes configuradas...');
+      setMessage('Buscando noticias reais nas fontes configuradas. Todo item novo entra como rascunho.');
       const data = await request('/api/news/sync', { method: 'POST' });
-      setMessage(`Sincronizacao concluida: ${data.imported} posts importados/atualizados.`);
+      setMessage(`Sincronizacao concluida: ${data.imported} posts importados/atualizados como rascunho.`);
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao sincronizar.');
     }
   }
 
-  async function createPost(event: FormEvent<HTMLFormElement>) {
+  function setField<K extends keyof PostForm>(field: K, value: PostForm[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function resetForm() {
+    setEditingSlug(null);
+    setForm(emptyPost);
+  }
+
+  function startEdit(post: BlogPost) {
+    setEditingSlug(post.slug);
+    setForm({
+      title: post.title,
+      summary: post.description,
+      content: postToContent(post),
+      category: post.category,
+      image: post.image,
+      videoUrl: post.videoUrl ?? '',
+      externalUrl: post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
+      keywords: post.keywords.join(', ')
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function readFileAsDataUrl(event: ChangeEvent<HTMLInputElement>, field: 'image' | 'videoUrl') {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setField(field, String(reader.result ?? ''));
+      setMessage(`${field === 'image' ? 'Imagem' : 'Video'} carregado no editor. Salve o rascunho para gravar.`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     try {
@@ -113,37 +203,35 @@ export function EditorClient() {
             }
           ]
         : [];
+      const payload: Partial<BlogPost> = {
+        title: form.title,
+        description: form.summary,
+        category: form.category,
+        image: form.image,
+        imageAlt: `Imagem editorial sobre ${form.title}`,
+        videoUrl: form.videoUrl || undefined,
+        keywords: form.keywords
+          .split(',')
+          .map((keyword) => keyword.trim())
+          .filter(Boolean),
+        sections: buildSections(form.content),
+        checklist: ['Revisar ortografia e fonte.', 'Validar links e comandos.', 'Publicar manualmente apos revisao.'],
+        externalLinks,
+        sourceUrl: form.externalUrl || undefined,
+        sourceName: form.externalUrl ? 'Fonte informada no editor' : undefined,
+        published: false
+      };
 
       await request('/api/editor/posts', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          category: form.category,
-          image: form.image,
-          imageAlt: `Imagem editorial sobre ${form.title}`,
-          sections: [
-            {
-              heading: 'Resumo',
-              body: [form.description]
-            },
-            {
-              heading: 'Contexto para leitores',
-              body: [
-                'Este post foi criado pelo editor do LevellingDev e pode ser expandido com tutorial, exemplos, comandos e referencias tecnicas.',
-                'Antes de publicar como guia definitivo, revise comandos, links externos e impactos de seguranca.'
-              ]
-            }
-          ],
-          checklist: ['Revisar links.', 'Adicionar exemplos praticos.', 'Testar comandos antes de publicar.'],
-          externalLinks
-        })
+        method: editingSlug ? 'PATCH' : 'POST',
+        body: JSON.stringify(editingSlug ? { slug: editingSlug, ...payload } : payload)
       });
-      setForm(emptyPost);
-      setMessage('Post criado com sucesso.');
+
+      resetForm();
+      setMessage(editingSlug ? 'Rascunho atualizado.' : 'Post criado como rascunho.');
       await loadPosts();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao criar post.');
+      setMessage(error instanceof Error ? error.message : 'Erro ao salvar post.');
     }
   }
 
@@ -175,9 +263,9 @@ export function EditorClient() {
       setMessage('Reescrevendo em PT-BR com texto editorial proprio...');
       await request('/api/editor/rewrite', {
         method: 'POST',
-        body: JSON.stringify({ slug, provider: textProvider, model: textModel })
+        body: JSON.stringify({ slug, provider: textProvider, model: textModel.trim() || undefined })
       });
-      setMessage('Post reescrito e revisado.');
+      setMessage('Post reescrito e revisado. Revise o rascunho antes de publicar.');
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao reescrever post.');
@@ -189,9 +277,9 @@ export function EditorClient() {
       setMessage('Gerando imagem editorial para o post...');
       await request('/api/editor/image', {
         method: 'POST',
-        body: JSON.stringify({ slug, provider: imageProvider, model: imageModel })
+        body: JSON.stringify({ slug, provider: imageProvider, model: imageModel.trim() || undefined })
       });
-      setMessage('Imagem editorial gerada.');
+      setMessage('Imagem editorial gerada e salva no rascunho.');
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao gerar imagem.');
@@ -210,69 +298,67 @@ export function EditorClient() {
     }
   }
 
+  const loginCard = (
+    <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
+      <div className="mb-5 grid gap-3 md:grid-cols-2">
+        <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">ADMIN_TOKEN</p>
+          <p className={`mt-2 text-sm font-semibold ${status?.adminTokenConfigured ? 'text-mint' : 'text-red-300'}`}>
+            {status?.adminTokenConfigured ? 'Configurado na aplicacao' : 'Nao configurado na aplicacao'}
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">DATABASE_URL</p>
+          <p className={`mt-2 text-sm font-semibold ${status?.databaseReachable ? 'text-mint' : 'text-amber'}`}>
+            {status?.databaseReachable
+              ? 'Banco conectado'
+              : status?.databaseConfigured
+                ? 'Banco configurado, mas sem conexao'
+                : 'Banco nao configurado na aplicacao'}
+          </p>
+        </div>
+      </div>
+
+      <label className="grid gap-2 text-sm font-medium text-slate-200">
+        Token de administrador
+        <input
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          type="password"
+          placeholder="ADMIN_TOKEN configurado no Dokploy"
+          className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={loadPosts}
+        className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-cyan px-4 text-sm font-semibold text-ink transition hover:bg-white"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Entrar no editor
+      </button>
+      {message ? <p className="mt-4 text-sm leading-6 text-mint">{message}</p> : null}
+    </section>
+  );
+
+  if (!authenticated) {
+    return <div className="grid gap-8">{loginCard}</div>;
+  }
+
   return (
     <div className="grid gap-8">
-      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-        <div className="mb-5 grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">ADMIN_TOKEN</p>
-            <p className={`mt-2 text-sm font-semibold ${status?.adminTokenConfigured ? 'text-mint' : 'text-red-300'}`}>
-              {status?.adminTokenConfigured ? 'Configurado na aplicacao' : 'Nao configurado na aplicacao'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">DATABASE_URL</p>
-            <p className={`mt-2 text-sm font-semibold ${status?.databaseReachable ? 'text-mint' : 'text-amber'}`}>
-              {status?.databaseReachable
-                ? 'Banco conectado'
-                : status?.databaseConfigured
-                  ? 'Banco configurado, mas sem conexao'
-                  : 'Banco nao configurado na aplicacao'}
-            </p>
-          </div>
-        </div>
-
-        <label className="grid gap-2 text-sm font-medium text-slate-200">
-          Token de administrador
-          <input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            type="password"
-            placeholder="ADMIN_TOKEN configurado no Dokploy"
-            className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-          />
-        </label>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={loadPosts}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-cyan px-4 text-sm font-semibold text-ink transition hover:bg-white"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Entrar / atualizar
-          </button>
-          <button
-            type="button"
-            onClick={syncNews}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:border-cyan/50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Buscar noticias agora
-          </button>
-        </div>
-        {message ? <p className="mt-4 text-sm leading-6 text-mint">{message}</p> : null}
-      </section>
+      {loginCard}
 
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
         <h2 className="text-2xl font-semibold text-white">Provedores de IA</h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          Escolha qual API sera usada para reescrever textos e gerar imagens. Se uma chave nao estiver configurada no
-          Dokploy, o editor mostra o erro sem derrubar o site.
+          Escolha a API para correcao, traducao, expansao e imagem. As chaves ficam nas variaveis de ambiente da
+          aplicacao no Dokploy.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="grid gap-3">
             <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Correcao, traducao e expansao
+              Texto, resumo e editorial
               <select
                 value={textProvider}
                 onChange={(event) => setTextProvider(event.target.value)}
@@ -281,22 +367,22 @@ export function EditorClient() {
                 <option value="local">Local sem API</option>
                 <option value="openai">OpenAI</option>
                 <option value="gemini">Gemini</option>
+                <option value="anthropic">Claude / Anthropic</option>
                 <option value="deepseek">DeepSeek</option>
+                <option value="qwen">Qwen</option>
+                <option value="opencode">OpenCode</option>
               </select>
             </label>
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Modelo de texto opcional
-              <input
-                value={textModel}
-                onChange={(event) => setTextModel(event.target.value)}
-                placeholder="Ex: gpt-5-mini, gemini-2.5-flash, deepseek-chat"
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-              />
-            </label>
+            <input
+              value={textModel}
+              onChange={(event) => setTextModel(event.target.value)}
+              placeholder="Modelo: gpt-5-mini, gemini-2.5-flash, claude-sonnet-4-5, deepseek-chat, qwen-plus..."
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
           </div>
           <div className="grid gap-3">
             <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Imagens editoriais
+              Imagem editorial
               <select
                 value={imageProvider}
                 onChange={(event) => setImageProvider(event.target.value)}
@@ -307,73 +393,143 @@ export function EditorClient() {
                 <option value="gemini">Gemini Nano Banana</option>
               </select>
             </label>
-            <label className="grid gap-2 text-sm font-medium text-slate-200">
-              Modelo de imagem opcional
-              <input
-                value={imageModel}
-                onChange={(event) => setImageModel(event.target.value)}
-                placeholder="Ex: gpt-image-1, gemini-2.5-flash-image"
-                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-              />
-            </label>
+            <input
+              value={imageModel}
+              onChange={(event) => setImageModel(event.target.value)}
+              placeholder="Modelo: gpt-image-1, gemini-2.5-flash-image..."
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
           </div>
         </div>
       </section>
 
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-        <h2 className="text-2xl font-semibold text-white">Criar post manual</h2>
-        <form onSubmit={createPost} className="mt-5 grid gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-semibold text-white">{editingSlug ? 'Editar post manualmente' : 'Criar post manual'}</h2>
+          {editingSlug ? (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200"
+            >
+              <X className="h-4 w-4" />
+              Cancelar edicao
+            </button>
+          ) : null}
+        </div>
+        <form onSubmit={savePost} className="mt-5 grid gap-4">
           <input
             value={form.title}
-            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+            onChange={(event) => setField('title', event.target.value)}
             required
-            placeholder="Titulo"
+            placeholder="Titulo do editorial"
             className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
           <textarea
-            value={form.description}
-            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+            value={form.summary}
+            onChange={(event) => setField('summary', event.target.value)}
             required
-            rows={5}
-            placeholder="Resumo humanizado do post"
+            rows={4}
+            placeholder="Resumo curto para aparecer somente nos cards da Home e SEO"
             className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
-          <div className="grid gap-4 md:grid-cols-3">
+          <textarea
+            value={form.content}
+            onChange={(event) => setField('content', event.target.value)}
+            rows={12}
+            placeholder="Texto principal completo do editorial. Este conteudo aparece somente na pagina completa do post."
+            className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+          />
+          <div className="grid gap-4 md:grid-cols-2">
             <input
               value={form.category}
-              onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+              onChange={(event) => setField('category', event.target.value)}
               placeholder="Categoria"
               className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
             />
             <input
-              value={form.image}
-              onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))}
-              placeholder="URL da imagem"
-              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
-            <input
-              value={form.externalUrl}
-              onChange={(event) => setForm((current) => ({ ...current, externalUrl: event.target.value }))}
-              placeholder="Link de fonte/referencia"
+              value={form.keywords}
+              onChange={(event) => setField('keywords', event.target.value)}
+              placeholder="SEO keywords separadas por virgula"
               className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
             />
           </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Imagem por URL
+              <input
+                value={form.image}
+                onChange={(event) => setField('image', event.target.value)}
+                placeholder="https://..."
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Upload de imagem
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => readFileAsDataUrl(event, 'image')}
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink"
+              />
+            </label>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Video por URL ou embed
+              <input
+                value={form.videoUrl}
+                onChange={(event) => setField('videoUrl', event.target.value)}
+                placeholder="https://youtube.com/... ou arquivo .mp4"
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-slate-200">
+              Upload de video
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(event) => readFileAsDataUrl(event, 'videoUrl')}
+                className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink"
+              />
+            </label>
+          </div>
+          <label className="grid gap-2 text-sm font-medium text-slate-200">
+            Link de fonte ou referencia
+            <input
+              value={form.externalUrl}
+              onChange={(event) => setField('externalUrl', event.target.value)}
+              placeholder="https://fonte-original.com"
+              className="min-h-12 rounded-lg border border-white/10 bg-black/30 px-4 text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+          </label>
           <button
             type="submit"
             className="inline-flex min-h-11 w-fit items-center gap-2 rounded-lg bg-mint px-4 text-sm font-semibold text-ink transition hover:bg-white"
           >
             <Save className="h-4 w-4" />
-            Salvar post
+            {editingLabel}
           </button>
         </form>
       </section>
 
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-        <h2 className="text-2xl font-semibold text-white">Controle total das publicacoes</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Publique, tire do ar, destaque na Home, defina ordem, gere imagem editorial e reescreva o texto em portugues
-          com fonte preservada.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Controle total das publicacoes</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Todos os itens do banco ficam como rascunho ate voce revisar e publicar manualmente.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={syncNews}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:border-cyan/50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Buscar noticias agora
+          </button>
+        </div>
         <div className="mt-5 grid gap-3">
           {state?.posts.map((post) => (
             <div key={post.slug} className="rounded-lg border border-white/10 bg-black/25 p-4">
@@ -386,58 +542,45 @@ export function EditorClient() {
                       {post.published ? 'Publicado' : 'Rascunho'}
                     </span>
                     {post.featured ? <span className="rounded-full bg-cyan/10 px-2 py-1 text-xs text-cyan">Destaque</span> : null}
+                    {post.videoUrl ? <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-200">Com video</span> : null}
                   </div>
                   <h3 className="mt-2 font-semibold text-white">{post.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{post.description}</p>
+                  <p className="summary-clamp mt-2 text-sm leading-6 text-slate-300">{post.description}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updatePost(post.slug, { published: !post.published })}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-cyan/50"
-                    >
+                    <button type="button" onClick={() => startEdit(post)} className="editor-button">
+                      <Edit3 className="h-4 w-4" />
+                      Editar
+                    </button>
+                    <button type="button" onClick={() => updatePost(post.slug, { published: !post.published })} className="editor-button">
                       {post.published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       {post.published ? 'Despublicar' : 'Publicar'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => updatePost(post.slug, { featured: !post.featured })}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-cyan/50"
-                    >
+                    <button type="button" onClick={() => updatePost(post.slug, { featured: !post.featured })} className="editor-button">
                       <Star className="h-4 w-4" />
                       {post.featured ? 'Remover destaque' : 'Destacar Home'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => rewritePost(post.slug)}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-mint/50"
-                    >
+                    <button type="button" onClick={() => rewritePost(post.slug)} className="editor-button">
                       <PencilLine className="h-4 w-4" />
                       Reescrever PT-BR
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => generateImage(post.slug)}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-mint/50"
-                    >
+                    <button type="button" onClick={() => generateImage(post.slug)} className="editor-button">
                       <ImagePlus className="h-4 w-4" />
                       Gerar imagem
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => generateVideoPrompt(post.slug)}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200 transition hover:border-mint/50"
-                    >
+                    <button type="button" onClick={() => generateVideoPrompt(post.slug)} className="editor-button">
                       <FileVideo className="h-4 w-4" />
                       Prompt video
                     </button>
-                    <a className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-cyan hover:text-white" href={`/blog/${post.slug}`}>
+                    {post.externalLinks[0] ? (
+                      <a className="editor-button" href={post.externalLinks[0].href} target="_blank" rel="noreferrer">
+                        <Link2 className="h-4 w-4" />
+                        Fonte
+                      </a>
+                    ) : null}
+                    <a className="editor-button text-cyan" href={`/blog/${post.slug}`}>
                       Abrir post
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => deletePost(post.slug)}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-400/30 px-3 text-sm text-red-300 transition hover:bg-red-400/10"
-                    >
+                    <button type="button" onClick={() => deletePost(post.slug)} className="editor-button border-red-400/30 text-red-300 hover:bg-red-400/10">
                       <Trash2 className="h-4 w-4" />
                       Remover
                     </button>

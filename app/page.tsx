@@ -174,7 +174,7 @@ export default async function Home() {
                 <h3 className="mt-5 text-xl font-semibold leading-snug text-white group-hover:text-cyan">
                   {post.title}
                 </h3>
-                <p className="mt-4 text-sm leading-6 text-slate-300">{post.description}</p>
+                <p className="summary-clamp mt-4 text-sm leading-6 text-slate-300">{post.description}</p>
                 <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan">
                   Ler artigo completo
                   <ArrowRight className="h-4 w-4" />

@@ -27,16 +27,26 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function cleanSummary(value: string) {
+  let next = normalizeText(value);
+
+  for (let index = 0; index < 5; index += 1) {
+    next = next.replace(/^Resumo editorial:\s*/i, '').trim();
+  }
+
+  return next;
+}
+
 export function rewritePostForPtBr(post: BlogPost): BlogPost {
   const sourceLabel = post.sourceName ? `A fonte original e ${post.sourceName}.` : 'A fonte original esta linkada ao fim do artigo.';
   const sourceUrl = post.sourceUrl ?? post.externalLinks[0]?.href;
   const cleanTitle = normalizeText(post.title);
-  const cleanDescription = normalizeText(post.description);
+  const cleanDescription = cleanSummary(post.description);
 
   return {
     ...post,
     title: cleanTitle,
-    description: `Resumo editorial: ${cleanDescription}`,
+    description: cleanDescription.slice(0, 220),
     readTime: post.readTime || '5 min',
     keywords: Array.from(
       new Set([

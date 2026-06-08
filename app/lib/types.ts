@@ -17,6 +17,7 @@ export type BlogPost = {
     label: string;
     href: string;
   }>;
+  videoUrl?: string;
   published?: boolean;
   featured?: boolean;
   sortOrder?: number;
