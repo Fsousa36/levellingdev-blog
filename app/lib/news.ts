@@ -14,15 +14,16 @@ type FeedItem = {
   category: string;
   publishedAt?: string;
   summary?: string;
+  imageUrl?: string;
+  locale?: 'pt-BR' | 'en';
 };
 
 export const feedSources: FeedSource[] = [
-  { name: 'OpenAI News', url: 'https://openai.com/news/rss.xml', category: 'Inteligencia Artificial' },
-  { name: 'GitHub Changelog', url: 'https://github.blog/changelog/feed/', category: 'Programacao' },
-  { name: 'GitHub Blog', url: 'https://github.blog/feed/', category: 'Programacao' },
-  { name: 'Vercel Blog', url: 'https://vercel.com/rss.xml', category: 'Deploy e Frontend' },
-  { name: 'web.dev', url: 'https://web.dev/blog/feed.xml', category: 'Frontend' },
-  { name: 'PostgreSQL News', url: 'https://www.postgresql.org/about/newsarchive/rss/', category: 'Banco de Dados' }
+  { name: 'Tecnoblog', url: 'https://tecnoblog.net/feed/', category: 'Programacao' },
+  { name: 'Canaltech', url: 'https://canaltech.com.br/rss/', category: 'Inteligencia Artificial' },
+  { name: 'Olhar Digital', url: 'https://olhardigital.com.br/feed/', category: 'Inteligencia Artificial' },
+  { name: 'Diolinux', url: 'https://diolinux.com.br/feed', category: 'Programacao' },
+  { name: 'TabNews', url: 'https://www.tabnews.com.br/recentes/rss', category: 'Programacao' }
 ];
 
 const keywords = [
@@ -48,17 +49,20 @@ const keywords = [
   'database',
   'github',
   'vercel',
-  'vps'
+  'vps',
+  'ia',
+  'inteligencia artificial',
+  'inteligência artificial',
+  'programacao',
+  'programação',
+  'desenvolvimento',
+  'automacao',
+  'automação',
+  'servidor',
+  'banco de dados',
+  'seguranca',
+  'segurança'
 ];
-
-const imageByCategory: Record<string, string> = {
-  'Inteligencia Artificial':
-    'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1400&q=80',
-  Programacao: 'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1400&q=80',
-  'Deploy e Frontend': 'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?auto=format&fit=crop&w=1400&q=80',
-  Frontend: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1400&q=80',
-  'Banco de Dados': 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?auto=format&fit=crop&w=1400&q=80'
-};
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (!value) {
@@ -73,6 +77,88 @@ function stripHtml(value = '') {
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isBrazilianSource(source: string) {
+  return ['Tecnoblog', 'Canaltech', 'Olhar Digital', 'Diolinux', 'TabNews'].includes(source);
+}
+
+function absoluteUrl(value: string, baseUrl: string) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
+function readMetaImage(html: string) {
+  const patterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern)?.[1];
+
+    if (match) {
+      return match.replace(/&amp;/g, '&').trim();
+    }
+  }
+
+  return null;
+}
+
+async function fetchSourceImage(link: string) {
+  try {
+    const response = await fetch(link, {
+      headers: {
+        'User-Agent': 'LevellingDev image fetcher (+https://levelingdev.com.br)'
+      },
+      next: { revalidate: 3600 }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const image = readMetaImage(await response.text());
+    return image ? absoluteUrl(image, link) : null;
+  } catch {
+    return null;
+  }
+}
+
+function uniqueFallbackImage(title: string, category: string) {
+  const prompt = encodeURIComponent(
+    `realistic editorial technology image, no text, ${category}, ${title}, software development, dark premium lighting`
+  );
+
+  return `https://image.pollinations.ai/prompt/${prompt}?width=1400&height=800&nologo=true&model=flux&seed=${Math.abs(
+    slugify(title).split('').reduce((total, letter) => total + letter.charCodeAt(0), 0)
+  )}`;
+}
+
+function firstImageFromFeed(raw: Record<string, any>, link: string) {
+  const mediaContent = asArray(raw['media:content']).find((media) => media?.url || media?.href);
+  const mediaThumbnail = asArray(raw['media:thumbnail']).find((media) => media?.url || media?.href);
+  const enclosure = asArray(raw.enclosure).find((item) => {
+    const type = item?.type ?? '';
+    return typeof type === 'string' && type.startsWith('image/');
+  });
+  const image =
+    raw.image?.url ??
+    raw.image ??
+    raw['itunes:image']?.href ??
+    mediaContent?.url ??
+    mediaContent?.href ??
+    mediaThumbnail?.url ??
+    mediaThumbnail?.href ??
+    enclosure?.url ??
+    enclosure?.href;
+
+  return typeof image === 'string' ? absoluteUrl(image, link) : undefined;
 }
 
 export function slugify(value: string) {
@@ -90,9 +176,28 @@ function matchesTopic(item: FeedItem) {
   return keywords.some((keyword) => haystack.includes(keyword));
 }
 
-function buildPost(item: FeedItem): BlogPost {
+function portugueseTitle(item: FeedItem) {
+  if (item.locale === 'pt-BR' || isBrazilianSource(item.source)) {
+    return item.title.trim();
+  }
+
+  return `Radar internacional: ${item.title.trim()}`;
+}
+
+function portugueseSummary(item: FeedItem, cleanSummary: string) {
+  if (item.locale === 'pt-BR' || isBrazilianSource(item.source)) {
+    return (
+      cleanSummary ||
+      `Atualizacao publicada por ${item.source} com impacto potencial para desenvolvedores, automacao, IA ou infraestrutura.`
+    );
+  }
+
+  return `Pauta internacional publicada por ${item.source}. O assunto ainda precisa de revisao editorial em portugues, com fonte preservada e foco no impacto pratico para devs.`;
+}
+
+async function buildPost(item: FeedItem): Promise<BlogPost> {
   const cleanSummary = stripHtml(item.summary).slice(0, 240);
-  const title = item.title.trim();
+  const title = portugueseTitle(item);
   const date = item.publishedAt ? new Date(item.publishedAt) : new Date();
   const dateLabel = date.toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -100,24 +205,24 @@ function buildPost(item: FeedItem): BlogPost {
     year: 'numeric'
   });
   const sourceHost = new URL(item.link).hostname.replace('www.', '');
+  const sourceImage = item.imageUrl || (await fetchSourceImage(item.link));
+  const image = sourceImage || uniqueFallbackImage(title, item.category);
 
   return {
     slug: `noticia-${slugify(title)}`,
     title,
-    description:
-      cleanSummary ||
-      `Atualizacao publicada por ${item.source} com impacto potencial para desenvolvedores, automacao, IA ou infraestrutura.`,
+    description: portugueseSummary(item, cleanSummary),
     category: item.category,
     date: dateLabel,
     readTime: '4 min',
-    image: imageByCategory[item.category] ?? imageByCategory.Programacao,
-    imageAlt: `Imagem editorial sobre ${item.category}`,
+    image,
+    imageAlt: sourceImage ? `Imagem original da fonte ${item.source}` : `Imagem editorial unica sobre ${title}`,
     keywords: [item.category, item.source, 'noticias de tecnologia', 'desenvolvimento de software'],
     sections: [
       {
         heading: 'O que foi publicado',
         body: [
-          `${item.source} publicou uma nova atualizacao: "${title}". O LevellingDev registra esta pauta com link direto para a fonte original, para que voce possa acompanhar o contexto completo sem depender de resumo solto.`,
+          `${item.source} publicou uma nova atualizacao relacionada a "${title}". O LevellingDev registra esta pauta com link direto para a fonte original, para que voce possa acompanhar o contexto completo sem depender de resumo solto.`,
           cleanSummary
             ? `Resumo publico da fonte: ${cleanSummary}`
             : 'A fonte nao trouxe um resumo longo no feed, entao o melhor caminho e abrir o link original e conferir os detalhes tecnicos diretamente.'
@@ -194,7 +299,9 @@ export async function fetchRelevantNews(limit = 12) {
           source: source.name,
           category: source.category,
           publishedAt,
-          summary: stripHtml(typeof summary === 'string' ? summary : summary?.['#text'])
+          summary: stripHtml(typeof summary === 'string' ? summary : summary?.['#text']),
+          imageUrl: firstImageFromFeed(raw, link),
+          locale: isBrazilianSource(source.name) ? 'pt-BR' : 'en'
         });
       }
     } catch {
@@ -217,5 +324,5 @@ export async function fetchRelevantNews(limit = 12) {
       return right - left;
     })
     .slice(0, limit)
-    .map(buildPost);
+    .reduce<Promise<BlogPost[]>>(async (promise, item) => [...(await promise), await buildPost(item)], Promise.resolve([]));
 }
