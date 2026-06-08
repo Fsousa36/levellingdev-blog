@@ -72,6 +72,8 @@ Regras obrigatorias:
 - Crie pelo menos 5 secoes, cada uma com 2 a 4 paragrafos.
 - Inclua explicacoes praticas, riscos, boas praticas, exemplos de decisao e proximos passos.
 - Se o tema for tutorial, descreva um fluxo aplicavel mesmo sem comandos especificos inventados.
+- Use fontes externas confiaveis como base quando forem informadas. O sistema adicionara links oficiais por paragrafo na pagina publica.
+- Nao crie URLs falsas. Se nao souber a URL exata, escreva o texto sem inventar link.
 - Responda SOMENTE JSON valido no formato:
 {
   "title": "titulo final",

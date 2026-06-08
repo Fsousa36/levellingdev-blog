@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Clock3, ExternalLink } from 'lucide-react';
 import { getPostBySlug } from '../../lib/blog';
+import { getParagraphReferences, getPostReferences } from '../../lib/references';
 
 const siteUrl = 'https://levelingdev.com.br';
 
@@ -90,6 +91,7 @@ export default async function BlogPostPage({ params }: PageProps) {
     notFound();
   }
   const youtubeEmbedUrl = getYoutubeEmbedUrl(post.videoUrl);
+  const postReferences = getPostReferences(post);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -166,21 +168,45 @@ export default async function BlogPostPage({ params }: PageProps) {
         ) : null}
 
         <div className="prose prose-lg prose-invert prose-custom mt-10 max-w-none">
-          {post.sections.map((section) => (
+          {post.sections.map((section, sectionIndex) => (
             <section key={section.heading}>
               <h2>{section.heading}</h2>
-              {section.body.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
+              {section.body.map((paragraph, paragraphIndex) => {
+                const paragraphReferences = getParagraphReferences(post, sectionIndex, paragraphIndex);
+
+                return (
+                  <div key={paragraph}>
+                    <p>{paragraph}</p>
+                    {paragraphReferences.length > 0 ? (
+                      <p className="not-prose -mt-2 mb-7 flex flex-wrap gap-2 text-xs text-slate-400">
+                        <span className="text-slate-500">Base:</span>
+                        {paragraphReferences.map((link) => (
+                          <a
+                            key={`${paragraph}-${link.href}`}
+                            href={link.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-cyan transition hover:border-cyan/50 hover:text-white"
+                          >
+                            {link.label}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ))}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </section>
           ))}
 
         </div>
 
+        {postReferences.length > 0 ? (
         <section className="mt-12 rounded-lg border border-white/10 bg-white/[0.035] p-6">
           <h2 className="text-xl font-semibold text-white">Links para aprofundar</h2>
           <div className="mt-5 grid gap-3">
-            {post.externalLinks.map((link) => (
+            {postReferences.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
@@ -194,6 +220,7 @@ export default async function BlogPostPage({ params }: PageProps) {
             ))}
           </div>
         </section>
+        ) : null}
       </article>
     </main>
   );
