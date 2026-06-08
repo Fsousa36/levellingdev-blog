@@ -536,27 +536,29 @@ export function EditorClient() {
             placeholder="Titulo do editorial"
             className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
-          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
-            Resumo
-            <textarea
-              value={form.summary}
-              onChange={(event) => setField('summary', event.target.value)}
-              required
-              rows={3}
-              placeholder="Resumo curto para aparecer somente nos cards da Home e SEO"
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
-          </label>
-          <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
-            Texto da matéria
-            <textarea
-              value={form.content}
-              onChange={(event) => setField('content', event.target.value)}
-              rows={8}
-              placeholder="Texto principal completo. Este conteudo aparece somente na pagina completa do post."
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
-          </label>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Resumo
+              <textarea
+                value={form.summary}
+                onChange={(event) => setField('summary', event.target.value)}
+                required
+                rows={10}
+                placeholder="Resumo curto para aparecer somente nos cards da Home e SEO"
+                className="min-h-64 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Texto da matéria
+              <textarea
+                value={form.content}
+                onChange={(event) => setField('content', event.target.value)}
+                rows={10}
+                placeholder="Texto principal completo. Este conteudo aparece somente na pagina completa do post."
+                className="min-h-64 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <input
               value={form.category}
