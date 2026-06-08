@@ -18,6 +18,11 @@ type FeedItem = {
   locale?: 'pt-BR' | 'en';
 };
 
+type SourceDetails = {
+  image: string | null;
+  points: string[];
+};
+
 export const feedSources: FeedSource[] = [
   { name: 'Tecnoblog', url: 'https://tecnoblog.net/feed/', category: 'Programacao' },
   { name: 'Canaltech', url: 'https://canaltech.com.br/rss/', category: 'Inteligencia Artificial' },
@@ -75,6 +80,11 @@ function asArray<T>(value: T | T[] | undefined): T[] {
 function stripHtml(value = '') {
   return value
     .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#8211;|&#8212;/g, '-')
+    .replace(/&#8220;|&#8221;|&quot;/g, '"')
+    .replace(/&#8216;|&#8217;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -110,7 +120,50 @@ function readMetaImage(html: string) {
   return null;
 }
 
-async function fetchSourceImage(link: string) {
+function extractSourcePoints(html: string) {
+  const readable = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+  const matches = [...readable.matchAll(/<(p|li|h2|h3)[^>]*>([\s\S]*?)<\/\1>/gi)];
+  const blocked = [
+    'publicidade',
+    'newsletter',
+    'assine',
+    'cookies',
+    'termos de uso',
+    'política de privacidade',
+    'leia também',
+    'continua após',
+    'receba notícias'
+  ];
+  const seen = new Set<string>();
+
+  return matches
+    .map((match) => stripHtml(match[2]))
+    .filter((text) => text.length >= 45 && text.length <= 520)
+    .filter((text) => !blocked.some((word) => text.toLowerCase().includes(word)))
+    .filter((text) => {
+      const key = text.toLowerCase().slice(0, 90);
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+function rewriteSourcePoint(point: string, index: number) {
+  const clean = point.replace(/\s+/g, ' ').trim();
+  const sentence = clean.length > 260 ? `${clean.slice(0, 257).replace(/\s+\S*$/, '')}...` : clean;
+
+  return `Ponto ${index + 1}: a materia destaca ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}`;
+}
+
+async function fetchSourceDetails(link: string): Promise<SourceDetails> {
   try {
     const response = await fetch(link, {
       headers: {
@@ -120,13 +173,18 @@ async function fetchSourceImage(link: string) {
     });
 
     if (!response.ok) {
-      return null;
+      return { image: null, points: [] };
     }
 
-    const image = readMetaImage(await response.text());
-    return image ? absoluteUrl(image, link) : null;
+    const html = await response.text();
+    const image = readMetaImage(html);
+
+    return {
+      image: image ? absoluteUrl(image, link) : null,
+      points: extractSourcePoints(html)
+    };
   } catch {
-    return null;
+    return { image: null, points: [] };
   }
 }
 
@@ -205,8 +263,11 @@ async function buildPost(item: FeedItem): Promise<BlogPost> {
     year: 'numeric'
   });
   const sourceHost = new URL(item.link).hostname.replace('www.', '');
-  const sourceImage = item.imageUrl || (await fetchSourceImage(item.link));
+  const sourceDetails = await fetchSourceDetails(item.link);
+  const sourceImage = item.imageUrl || sourceDetails.image;
   const image = sourceImage || uniqueFallbackImage(title, item.category);
+  const sourcePoints = sourceDetails.points.length > 0 ? sourceDetails.points : cleanSummary ? [cleanSummary] : [];
+  const rewrittenPoints = sourcePoints.slice(0, 8).map(rewriteSourcePoint);
 
   return {
     slug: `noticia-${slugify(title)}`,
@@ -220,26 +281,29 @@ async function buildPost(item: FeedItem): Promise<BlogPost> {
     keywords: [item.category, item.source, 'noticias de tecnologia', 'desenvolvimento de software'],
     sections: [
       {
-        heading: 'O que foi publicado',
+        heading: 'Resumo da matéria',
         body: [
-          `${item.source} publicou uma nova atualizacao relacionada a "${title}". O LevellingDev registra esta pauta com link direto para a fonte original, para que voce possa acompanhar o contexto completo sem depender de resumo solto.`,
+          `${item.source} publicou uma matéria sobre "${title}". Este rascunho organiza o assunto em português, preservando a fonte original para conferência e revisão editorial.`,
           cleanSummary
-            ? `Resumo publico da fonte: ${cleanSummary}`
-            : 'A fonte nao trouxe um resumo longo no feed, entao o melhor caminho e abrir o link original e conferir os detalhes tecnicos diretamente.'
+            ? `Em linhas gerais, a pauta informa que ${cleanSummary.charAt(0).toLowerCase()}${cleanSummary.slice(1)}`
+            : `A fonte nao trouxe um resumo longo no feed. A leitura completa deve ser conferida em ${sourceHost} antes da publicacao final.`
         ]
       },
       {
-        heading: 'Por que isso importa para devs',
-        body: [
-          'Mudancas em IA, GitHub, Vercel, frontend, banco de dados e deploy costumam afetar escolhas de stack, produtividade, seguranca e custo operacional. Mesmo quando a novidade parece pequena, ela pode virar uma melhoria de fluxo, uma atualizacao de dependencia ou uma pauta de estudo para o time.',
-          'A recomendacao pratica e avaliar a novidade em tres perguntas: ela reduz trabalho repetitivo, melhora confiabilidade ou muda alguma decisao de arquitetura? Se a resposta for sim, vale abrir uma tarefa curta para testar.'
-        ]
+        heading: 'Pontos principais',
+        body:
+          rewrittenPoints.length > 0
+            ? rewrittenPoints
+            : [
+                'A fonte apresenta uma pauta que precisa ser revisada manualmente no editor antes da publicacao.',
+                'Abra o link original, confirme os detalhes e complemente este rascunho com os exemplos ou informacoes essenciais da materia.'
+              ]
       },
       {
-        heading: 'Como acompanhar sem cair em hype',
+        heading: 'Como usar essa informação',
         body: [
-          `Leia a publicacao original em ${sourceHost}, confira changelogs relacionados e teste em ambiente isolado antes de levar para producao.`,
-          'Aqui no blog, a ideia e manter um radar continuo: noticias reais, fontes linkadas e uma leitura tecnica simples para decidir o que merece virar tutorial mais profundo.'
+          `Antes de publicar, confira a materia completa em ${sourceHost} e valide nomes, datas, recursos citados e qualquer recomendacao pratica.`,
+          'Se o assunto envolver IA, desenvolvimento, aplicativos, infraestrutura ou automacao, transforme a noticia em conhecimento util: explique o contexto, mostre exemplos, aponte limitacoes e deixe claro o que o leitor pode fazer depois de ler.'
         ]
       }
     ],
