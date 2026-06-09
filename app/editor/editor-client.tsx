@@ -2,6 +2,8 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
   Edit3,
   Eye,
   EyeOff,
@@ -14,7 +16,7 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import type { BlogPost } from '../lib/types';
+import type { BlogPost, ContentBlock, PageWidget, PostTypography } from '../lib/types';
 
 type ApiState = {
   database: boolean;
@@ -31,6 +33,8 @@ type StatusState = {
 type SettingsState = Record<string, boolean>;
 
 type PostForm = {
+  slug: string;
+  contentType: 'post' | 'page';
   title: string;
   summary: string;
   content: string;
@@ -41,9 +45,14 @@ type PostForm = {
   externalUrl: string;
   keywords: string;
   aiPrompt: string;
+  blocks: ContentBlock[];
+  widgets: PageWidget[];
+  typography: PostTypography;
 };
 
 const emptyPost: PostForm = {
+  slug: '',
+  contentType: 'post',
   title: '',
   summary: '',
   content: '',
@@ -53,7 +62,17 @@ const emptyPost: PostForm = {
   videoUrl: '',
   externalUrl: '',
   keywords: '',
-  aiPrompt: ''
+  aiPrompt: '',
+  blocks: [],
+  widgets: [],
+  typography: {
+    fontFamily: 'system',
+    h1Size: 'md',
+    h2Size: 'md',
+    bodySize: 'md',
+    lineHeight: 'relaxed',
+    textAlign: 'left'
+  }
 };
 
 const apiFields = [
@@ -112,6 +131,10 @@ function postToContent(post: BlogPost) {
   return post.sections.flatMap((section) => section.body).join('\n\n');
 }
 
+function createId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function buildSections(content: string) {
   const paragraphs = content
     .split(/\n{2,}/)
@@ -124,6 +147,48 @@ function buildSections(content: string) {
       body: paragraphs.length > 0 ? paragraphs : ['Texto principal ainda em rascunho.']
     }
   ];
+}
+
+function blocksFromContent(content: string): ContentBlock[] {
+  return content
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => {
+      if (paragraph.startsWith('# ')) {
+        return { id: createId('block'), type: 'h1', content: paragraph.replace(/^#\s+/, '') };
+      }
+
+      if (paragraph.startsWith('## ')) {
+        return { id: createId('block'), type: 'h2', content: paragraph.replace(/^##\s+/, '') };
+      }
+
+      if (paragraph.startsWith('### ')) {
+        return { id: createId('block'), type: 'h3', content: paragraph.replace(/^###\s+/, '') };
+      }
+
+      return { id: createId('block'), type: 'paragraph', content: paragraph };
+    });
+}
+
+function contentFromBlocks(blocks: ContentBlock[]) {
+  return blocks
+    .filter((block) => ['h1', 'h2', 'h3', 'paragraph', 'quote'].includes(block.type))
+    .map((block) => block.content)
+    .join('\n\n');
+}
+
+function postToBlocks(post: BlogPost) {
+  if (post.contentBlocks && post.contentBlocks.length > 0) {
+    return post.contentBlocks;
+  }
+
+  return post.sections.flatMap((section) => [
+    ...(section.heading && section.heading !== 'Editorial completo'
+      ? [{ id: createId('block'), type: 'h2' as const, content: section.heading }]
+      : []),
+    ...section.body.map((paragraph) => ({ id: createId('block'), type: 'paragraph' as const, content: paragraph }))
+  ]);
 }
 
 export function EditorClient() {
@@ -149,6 +214,10 @@ export function EditorClient() {
   const contentRef = useRef<HTMLTextAreaElement | null>(null);
 
   const editingLabel = useMemo(() => (editingSlug ? 'Atualizar rascunho' : 'Salvar rascunho'), [editingSlug]);
+  const categoryOptions = useMemo(
+    () => Array.from(new Set([...(state?.posts.map((post) => post.category).filter(Boolean) ?? []), 'Programacao', 'Inteligencia Artificial', 'VPS e Deploy', 'Low-Code'])).sort(),
+    [state?.posts]
+  );
 
   useEffect(() => {
     const savedToken = window.localStorage.getItem('levelingdev-admin-token');
@@ -275,18 +344,27 @@ export function EditorClient() {
   }
 
   function startEdit(post: BlogPost) {
+    const blocks = postToBlocks(post);
     setEditingSlug(post.slug);
     setForm({
+      slug: post.slug,
+      contentType: post.contentType ?? 'post',
       title: post.title,
       summary: post.description,
-      content: postToContent(post),
+      content: contentFromBlocks(blocks) || postToContent(post),
       category: post.category,
       image: post.image,
       sourceImageUrl: post.sourceImageUrl ?? post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
       videoUrl: post.videoUrl ?? '',
       externalUrl: post.sourceUrl ?? post.externalLinks[0]?.href ?? '',
       keywords: post.keywords.join(', '),
-      aiPrompt: ''
+      aiPrompt: '',
+      blocks,
+      widgets: post.widgets ?? [],
+      typography: {
+        ...emptyPost.typography,
+        ...(post.typography ?? {})
+      }
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -330,10 +408,102 @@ export function EditorClient() {
     setEditorMessage('Link aplicado no texto. Na pagina publica ele aparece dentro do paragrafo, sem bloco Base ou lista extra.');
   }
 
+  function setTypography<K extends keyof PostTypography>(field: K, value: NonNullable<PostTypography[K]>) {
+    setForm((current) => ({
+      ...current,
+      typography: {
+        ...current.typography,
+        [field]: value
+      }
+    }));
+  }
+
+  function syncTextToBlocks() {
+    const blocks = blocksFromContent(form.content);
+    setField('blocks', blocks);
+    setEditorMessage('Texto convertido em blocos. Agora voce pode reposicionar midias, titulos e widgets antes de publicar.');
+  }
+
+  function addBlock(type: ContentBlock['type']) {
+    const nextBlock: ContentBlock = {
+      id: createId('block'),
+      type,
+      content: type === 'image' ? 'Imagem no corpo do editorial' : type === 'video' ? 'Video no corpo do editorial' : '',
+      position: 'full'
+    };
+
+    setForm((current) => ({ ...current, blocks: [...current.blocks, nextBlock] }));
+  }
+
+  function updateBlock(id: string, patch: Partial<ContentBlock>) {
+    setForm((current) => ({
+      ...current,
+      blocks: current.blocks.map((block) => (block.id === id ? { ...block, ...patch } : block))
+    }));
+  }
+
+  function moveBlock(index: number, direction: -1 | 1) {
+    setForm((current) => {
+      const nextIndex = index + direction;
+
+      if (nextIndex < 0 || nextIndex >= current.blocks.length) {
+        return current;
+      }
+
+      const blocks = [...current.blocks];
+      const [block] = blocks.splice(index, 1);
+      blocks.splice(nextIndex, 0, block);
+      return { ...current, blocks };
+    });
+  }
+
+  function removeBlock(id: string) {
+    setForm((current) => ({ ...current, blocks: current.blocks.filter((block) => block.id !== id) }));
+  }
+
+  function addWidget(area: PageWidget['area']) {
+    const widget: PageWidget = {
+      id: createId('widget'),
+      type: 'note',
+      area,
+      title: 'Widget editorial',
+      content: 'Conteudo do widget.'
+    };
+
+    setForm((current) => ({ ...current, widgets: [...current.widgets, widget] }));
+  }
+
+  function updateWidget(id: string, patch: Partial<PageWidget>) {
+    setForm((current) => ({
+      ...current,
+      widgets: current.widgets.map((widget) => (widget.id === id ? { ...widget, ...patch } : widget))
+    }));
+  }
+
+  function removeWidget(id: string) {
+    setForm((current) => ({ ...current, widgets: current.widgets.filter((widget) => widget.id !== id) }));
+  }
+
+  function readBlockFileAsDataUrl(event: ChangeEvent<HTMLInputElement>, blockId: string) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateBlock(blockId, { url: String(reader.result ?? '') });
+      setEditorMessage('Arquivo carregado no bloco. Salve o rascunho para gravar.');
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     try {
+      const articleContent = form.blocks.length > 0 ? contentFromBlocks(form.blocks) : form.content;
       const externalLinks = form.externalUrl
         ? [
             {
@@ -343,6 +513,8 @@ export function EditorClient() {
           ]
         : [];
       const payload: Partial<BlogPost> = {
+        slug: form.slug.trim() || undefined,
+        contentType: form.contentType,
         title: form.title,
         description: form.summary,
         category: form.category,
@@ -354,7 +526,10 @@ export function EditorClient() {
           .split(',')
           .map((keyword) => keyword.trim())
           .filter(Boolean),
-        sections: buildSections(form.content),
+        sections: buildSections(articleContent),
+        contentBlocks: form.blocks.length > 0 ? form.blocks : blocksFromContent(form.content),
+        widgets: form.widgets,
+        typography: form.typography,
         checklist: ['Revisar ortografia e fonte.', 'Validar links e comandos.', 'Publicar manualmente apos revisao.'],
         externalLinks,
         sourceUrl: form.externalUrl || undefined,
@@ -364,7 +539,7 @@ export function EditorClient() {
 
       await request('/api/editor/posts', {
         method: editingSlug ? 'PATCH' : 'POST',
-        body: JSON.stringify(editingSlug ? { slug: editingSlug, ...payload } : payload)
+        body: JSON.stringify(editingSlug ? { ...payload, slug: editingSlug } : payload)
       });
 
       resetForm();
@@ -398,8 +573,10 @@ export function EditorClient() {
       setForm((current) => ({
         ...current,
         title: data.draft.title || current.title,
+        slug: current.slug,
         summary: data.draft.description || current.summary,
         content: postToContent(data.draft),
+        blocks: postToBlocks(data.draft),
         category: data.draft.category || current.category,
         keywords: data.draft.keywords.join(', '),
         externalUrl: data.draft.sourceUrl || current.externalUrl,
@@ -699,6 +876,43 @@ export function EditorClient() {
             placeholder="Titulo do editorial"
             className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
+          <div className="grid gap-3 md:grid-cols-[160px_1fr_220px]">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Tipo
+              <select
+                value={form.contentType}
+                onChange={(event) => setField('contentType', event.target.value as PostForm['contentType'])}
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+              >
+                <option value="post">Post / Noticia</option>
+                <option value="page">Pagina</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Slug / URL
+              <input
+                value={form.slug}
+                onChange={(event) => setField('slug', event.target.value)}
+                placeholder={form.contentType === 'page' ? 'sobre-a-levelingdev' : 'titulo-do-post'}
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+              Categoria
+              <input
+                value={form.category}
+                onChange={(event) => setField('category', event.target.value)}
+                list="editor-categories"
+                placeholder="Categoria"
+                className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+              />
+              <datalist id="editor-categories">
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
+            </label>
+          </div>
           <div className="grid gap-2 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-[1fr_auto]">
             <input
               value={manualLinkUrl}
@@ -750,13 +964,230 @@ export function EditorClient() {
               />
             </label>
           </div>
+          <section className="rounded-lg border border-cyan/15 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-white">Editor visual da materia</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Monte a noticia como rascunho profissional: titulos, paragrafos, imagens, videos e widgets posicionados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={syncTextToBlocks}
+                className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-cyan/30 px-3 text-xs font-semibold text-cyan transition hover:bg-cyan/10"
+              >
+                Converter texto em blocos
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-6">
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Fonte
+                <select
+                  value={form.typography.fontFamily ?? 'system'}
+                  onChange={(event) => setTypography('fontFamily', event.target.value as NonNullable<PostTypography['fontFamily']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="system">Sistema</option>
+                  <option value="serif">Serifada</option>
+                  <option value="mono">Mono</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                H1
+                <select
+                  value={form.typography.h1Size ?? 'md'}
+                  onChange={(event) => setTypography('h1Size', event.target.value as NonNullable<PostTypography['h1Size']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="sm">Menor</option>
+                  <option value="md">Padrao</option>
+                  <option value="lg">Grande</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                H2
+                <select
+                  value={form.typography.h2Size ?? 'md'}
+                  onChange={(event) => setTypography('h2Size', event.target.value as NonNullable<PostTypography['h2Size']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="sm">Menor</option>
+                  <option value="md">Padrao</option>
+                  <option value="lg">Grande</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Texto
+                <select
+                  value={form.typography.bodySize ?? 'md'}
+                  onChange={(event) => setTypography('bodySize', event.target.value as NonNullable<PostTypography['bodySize']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="sm">Compacto</option>
+                  <option value="md">Padrao</option>
+                  <option value="lg">Amplo</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Linha
+                <select
+                  value={form.typography.lineHeight ?? 'relaxed'}
+                  onChange={(event) => setTypography('lineHeight', event.target.value as NonNullable<PostTypography['lineHeight']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="relaxed">Conforto</option>
+                  <option value="loose">Espacado</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
+                Alinhamento
+                <select
+                  value={form.typography.textAlign ?? 'left'}
+                  onChange={(event) => setTypography('textAlign', event.target.value as NonNullable<PostTypography['textAlign']>)}
+                  className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                >
+                  <option value="left">Esquerda</option>
+                  <option value="center">Centro</option>
+                  <option value="justify">Justificado</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(['h1', 'h2', 'h3', 'paragraph', 'quote', 'image', 'video'] as ContentBlock['type'][]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => addBlock(type)}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan/50 hover:text-white"
+                >
+                  + {type}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {form.blocks.map((block, index) => (
+                <div key={block.id} className="rounded-lg border border-white/10 bg-black/25 p-3">
+                  <div className="grid gap-2 md:grid-cols-[130px_1fr_130px_auto]">
+                    <select
+                      value={block.type}
+                      onChange={(event) => updateBlock(block.id, { type: event.target.value as ContentBlock['type'] })}
+                      className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                    >
+                      <option value="h1">H1</option>
+                      <option value="h2">H2</option>
+                      <option value="h3">H3</option>
+                      <option value="paragraph">Paragrafo</option>
+                      <option value="quote">Citacao</option>
+                      <option value="image">Imagem</option>
+                      <option value="video">Video</option>
+                    </select>
+                    <input
+                      value={block.content}
+                      onChange={(event) => updateBlock(block.id, { content: event.target.value })}
+                      placeholder="Texto, titulo ou descricao do bloco"
+                      className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                    />
+                    <select
+                      value={block.position ?? 'full'}
+                      onChange={(event) => updateBlock(block.id, { position: event.target.value as ContentBlock['position'] })}
+                      className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                    >
+                      <option value="full">Largura total</option>
+                      <option value="left">Esquerda</option>
+                      <option value="right">Direita</option>
+                      <option value="center">Centro</option>
+                    </select>
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => moveBlock(index, -1)} className="editor-button px-2" title="Subir bloco">
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => moveBlock(index, 1)} className="editor-button px-2" title="Descer bloco">
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => removeBlock(block.id)} className="editor-button border-red-400/30 px-2 text-red-300">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  {block.type === 'image' || block.type === 'video' ? (
+                    <div className="mt-2 grid gap-2 md:grid-cols-3">
+                      <input
+                        value={block.url ?? ''}
+                        onChange={(event) => updateBlock(block.id, { url: event.target.value })}
+                        placeholder={block.type === 'image' ? 'URL da imagem' : 'URL do video, YouTube ou mp4'}
+                        className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                      />
+                      <input
+                        value={block.caption ?? ''}
+                        onChange={(event) => updateBlock(block.id, { caption: event.target.value })}
+                        placeholder="Legenda opcional"
+                        className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+                      />
+                      <input
+                        type="file"
+                        accept={block.type === 'image' ? 'image/*' : 'video/*'}
+                        onChange={(event) => readBlockFileAsDataUrl(event, block.id)}
+                        className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-cyan file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-ink"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-white">Widgets da pagina</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">Adicione notas, links, imagens ou videos nas laterais, meio, final ou rodape do post.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['left', 'right', 'middle', 'afterArticle', 'footer'] as PageWidget['area'][]).map((area) => (
+                  <button key={area} type="button" onClick={() => addWidget(area)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan/50">
+                    + {area}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {form.widgets.map((widget) => (
+                <div key={widget.id} className="rounded-lg border border-white/10 bg-black/25 p-3">
+                  <div className="grid gap-2 md:grid-cols-[120px_150px_1fr_auto]">
+                    <select value={widget.area} onChange={(event) => updateWidget(widget.id, { area: event.target.value as PageWidget['area'] })} className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2">
+                      <option value="left">Lateral esquerda</option>
+                      <option value="right">Lateral direita</option>
+                      <option value="middle">Meio do texto</option>
+                      <option value="afterArticle">Final do artigo</option>
+                      <option value="footer">Rodape</option>
+                    </select>
+                    <select value={widget.type} onChange={(event) => updateWidget(widget.id, { type: event.target.value as PageWidget['type'] })} className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2">
+                      <option value="note">Nota</option>
+                      <option value="link">Link</option>
+                      <option value="image">Imagem</option>
+                      <option value="video">Video</option>
+                    </select>
+                    <input value={widget.title} onChange={(event) => updateWidget(widget.id, { title: event.target.value })} placeholder="Titulo do widget" className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2" />
+                    <button type="button" onClick={() => removeWidget(widget.id)} className="editor-button border-red-400/30 text-red-300">
+                      <Trash2 className="h-4 w-4" />
+                      Remover
+                    </button>
+                  </div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    <textarea value={widget.content} onChange={(event) => updateWidget(widget.id, { content: event.target.value })} rows={2} placeholder="Conteudo do widget" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2" />
+                    <input value={widget.url ?? ''} onChange={(event) => updateWidget(widget.id, { url: event.target.value })} placeholder="URL opcional para link, imagem ou video" className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={form.category}
-              onChange={(event) => setField('category', event.target.value)}
-              placeholder="Categoria"
-              className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
-            />
             <input
               value={form.keywords}
               onChange={(event) => setField('keywords', event.target.value)}
@@ -871,6 +1302,9 @@ export function EditorClient() {
                     <span className={`rounded-full px-2 py-1 text-xs ${post.published ? 'bg-mint/10 text-mint' : 'bg-amber/10 text-amber'}`}>
                       {post.published ? 'Publicado' : 'Rascunho'}
                     </span>
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-200">
+                      {(post.contentType ?? 'post') === 'page' ? 'Pagina' : 'Post'}
+                    </span>
                     {post.featured ? <span className="rounded-full bg-cyan/10 px-2 py-1 text-xs text-cyan">Destaque</span> : null}
                     {post.videoUrl ? <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-200">Com video</span> : null}
                   </div>
@@ -903,8 +1337,8 @@ export function EditorClient() {
                         Fonte
                       </a>
                     ) : null}
-                    <a className="editor-button text-cyan" href={`/blog/${post.slug}`}>
-                      Abrir post
+                    <a className="editor-button text-cyan" href={(post.contentType ?? 'post') === 'page' ? `/${post.slug}` : `/blog/${post.slug}`}>
+                      Abrir
                     </a>
                     <button type="button" onClick={() => deletePost(post.slug)} className="editor-button border-red-400/30 text-red-300 hover:bg-red-400/10">
                       <Trash2 className="h-4 w-4" />

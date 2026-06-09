@@ -77,6 +77,7 @@ export async function ensureDatabase() {
     create table if not exists posts (
       id serial primary key,
       slug text unique not null,
+      content_type text not null default 'post',
       title text not null,
       description text not null,
       category text not null,
@@ -92,6 +93,9 @@ export async function ensureDatabase() {
       source_url text unique,
       source_name text,
       source_image_url text,
+      content_blocks jsonb not null default '[]'::jsonb,
+      widgets jsonb not null default '[]'::jsonb,
+      typography jsonb not null default '{}'::jsonb,
       published boolean not null default true,
       featured boolean not null default false,
       sort_order integer not null default 0,
@@ -101,9 +105,13 @@ export async function ensureDatabase() {
   `);
 
   await pool.query(`alter table posts add column if not exists featured boolean not null default false;`);
+  await pool.query(`alter table posts add column if not exists content_type text not null default 'post';`);
   await pool.query(`alter table posts add column if not exists sort_order integer not null default 0;`);
   await pool.query(`alter table posts add column if not exists video_url text;`);
   await pool.query(`alter table posts add column if not exists source_image_url text;`);
+  await pool.query(`alter table posts add column if not exists content_blocks jsonb not null default '[]'::jsonb;`);
+  await pool.query(`alter table posts add column if not exists widgets jsonb not null default '[]'::jsonb;`);
+  await pool.query(`alter table posts add column if not exists typography jsonb not null default '{}'::jsonb;`);
   await pool.query(`
     create table if not exists editor_settings (
       key text primary key,
@@ -119,6 +127,7 @@ export async function ensureDatabase() {
 function rowToPost(row: Record<string, any>): BlogPost {
   return {
     slug: row.slug,
+    contentType: row.content_type ?? 'post',
     title: row.title,
     description: row.description,
     category: row.category,
@@ -136,7 +145,10 @@ function rowToPost(row: Record<string, any>): BlogPost {
     sortOrder: row.sort_order ?? 0,
     sourceUrl: row.source_url ?? undefined,
     sourceName: row.source_name ?? undefined,
-    sourceImageUrl: row.source_image_url ?? undefined
+    sourceImageUrl: row.source_image_url ?? undefined,
+    contentBlocks: row.content_blocks ?? [],
+    widgets: row.widgets ?? [],
+    typography: row.typography ?? {}
   };
 }
 
@@ -148,7 +160,7 @@ export async function getDatabasePosts() {
   try {
     await ensureDatabase();
     const result = await pool.query(
-      `select * from posts where published = true order by featured desc, sort_order desc, created_at desc, id desc limit 80`
+      `select * from posts where published = true and content_type = 'post' order by featured desc, sort_order desc, created_at desc, id desc limit 80`
     );
 
     return result.rows.map(rowToPost);
@@ -178,10 +190,57 @@ export async function getDatabasePostBySlug(slug: string) {
 
   try {
     await ensureDatabase();
-    const result = await pool.query(`select * from posts where slug = $1 and published = true limit 1`, [slug]);
+    const result = await pool.query(`select * from posts where slug = $1 and published = true and content_type = 'post' limit 1`, [slug]);
     return result.rows[0] ? rowToPost(result.rows[0]) : null;
   } catch {
     return null;
+  }
+}
+
+export async function getDatabasePageBySlug(slug: string) {
+  if (!pool) {
+    return null;
+  }
+
+  try {
+    await ensureDatabase();
+    const result = await pool.query(`select * from posts where slug = $1 and published = true and content_type = 'page' limit 1`, [slug]);
+    return result.rows[0] ? rowToPost(result.rows[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDatabasePostsByCategory(category: string) {
+  if (!pool) {
+    return [];
+  }
+
+  try {
+    await ensureDatabase();
+    const result = await pool.query(
+      `select * from posts where published = true and content_type = 'post' and lower(category) = lower($1) order by featured desc, sort_order desc, created_at desc, id desc limit 80`,
+      [category]
+    );
+    return result.rows.map(rowToPost);
+  } catch {
+    return [];
+  }
+}
+
+export async function getDatabaseCategories() {
+  if (!pool) {
+    return [];
+  }
+
+  try {
+    await ensureDatabase();
+    const result = await pool.query(
+      `select category, count(*)::int as total from posts where content_type = 'post' group by category order by category asc`
+    );
+    return result.rows.map((row) => ({ name: row.category as string, total: row.total as number }));
+  } catch {
+    return [];
   }
 }
 
@@ -208,11 +267,13 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
   await pool.query(
     `
       insert into posts (
-        slug, title, description, category, date_label, read_time, image, image_alt,
-        keywords, sections, checklist, external_links, video_url, source_url, source_name, source_image_url, published, updated_at
+        slug, content_type, title, description, category, date_label, read_time, image, image_alt,
+        keywords, sections, checklist, external_links, video_url, source_url, source_name, source_image_url,
+        content_blocks, widgets, typography, published, updated_at
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,now())
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,now())
       on conflict (slug) do update set
+        content_type = excluded.content_type,
         title = excluded.title,
         description = excluded.description,
         category = excluded.category,
@@ -228,10 +289,14 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
         source_url = excluded.source_url,
         source_name = excluded.source_name,
         source_image_url = excluded.source_image_url,
+        content_blocks = excluded.content_blocks,
+        widgets = excluded.widgets,
+        typography = excluded.typography,
         updated_at = now()
     `,
     [
       post.slug,
+      post.contentType ?? 'post',
       post.title,
       post.description,
       post.category,
@@ -247,6 +312,9 @@ export async function upsertDatabasePost(post: BlogPost, options?: { publishedDe
       post.sourceUrl ?? null,
       post.sourceName ?? null,
       post.sourceImageUrl ?? null,
+      JSON.stringify(post.contentBlocks ?? []),
+      JSON.stringify(post.widgets ?? []),
+      JSON.stringify(post.typography ?? {}),
       post.published ?? options?.publishedDefault ?? true
     ]
   );
@@ -268,39 +336,48 @@ export async function updateDatabasePost(slug: string, patch: Partial<BlogPost>)
   const next: BlogPost = {
     ...previous,
     ...patch,
+    contentType: patch.contentType ?? previous.contentType ?? 'post',
     keywords: patch.keywords ?? previous.keywords,
     sections: patch.sections ?? previous.sections,
     checklist: patch.checklist ?? previous.checklist,
-    externalLinks: patch.externalLinks ?? previous.externalLinks
+    externalLinks: patch.externalLinks ?? previous.externalLinks,
+    contentBlocks: patch.contentBlocks ?? previous.contentBlocks,
+    widgets: patch.widgets ?? previous.widgets,
+    typography: patch.typography ?? previous.typography
   };
 
   await pool.query(
     `
       update posts set
         title = $2,
-        description = $3,
-        category = $4,
-        date_label = $5,
-        read_time = $6,
-        image = $7,
-        image_alt = $8,
-        keywords = $9::jsonb,
-        sections = $10::jsonb,
-        checklist = $11::jsonb,
-        external_links = $12::jsonb,
-        video_url = $13,
-        source_url = $14,
-        source_name = $15,
-        source_image_url = $16,
-        published = $17,
-        featured = $18,
-        sort_order = $19,
+        content_type = $3,
+        description = $4,
+        category = $5,
+        date_label = $6,
+        read_time = $7,
+        image = $8,
+        image_alt = $9,
+        keywords = $10::jsonb,
+        sections = $11::jsonb,
+        checklist = $12::jsonb,
+        external_links = $13::jsonb,
+        video_url = $14,
+        source_url = $15,
+        source_name = $16,
+        source_image_url = $17,
+        content_blocks = $18::jsonb,
+        widgets = $19::jsonb,
+        typography = $20::jsonb,
+        published = $21,
+        featured = $22,
+        sort_order = $23,
         updated_at = now()
       where slug = $1
     `,
     [
       slug,
       next.title,
+      next.contentType ?? 'post',
       next.description,
       next.category,
       next.date,
@@ -315,6 +392,9 @@ export async function updateDatabasePost(slug: string, patch: Partial<BlogPost>)
       next.sourceUrl ?? null,
       next.sourceName ?? null,
       next.sourceImageUrl ?? null,
+      JSON.stringify(next.contentBlocks ?? []),
+      JSON.stringify(next.widgets ?? []),
+      JSON.stringify(next.typography ?? {}),
       next.published ?? true,
       next.featured ?? false,
       next.sortOrder ?? 0

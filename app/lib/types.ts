@@ -1,5 +1,34 @@
+export type ContentBlock = {
+  id: string;
+  type: 'h1' | 'h2' | 'h3' | 'paragraph' | 'image' | 'video' | 'quote';
+  content: string;
+  url?: string;
+  alt?: string;
+  caption?: string;
+  position?: 'full' | 'left' | 'right' | 'center';
+};
+
+export type PageWidget = {
+  id: string;
+  type: 'note' | 'link' | 'image' | 'video';
+  area: 'left' | 'right' | 'middle' | 'afterArticle' | 'footer';
+  title: string;
+  content: string;
+  url?: string;
+};
+
+export type PostTypography = {
+  fontFamily?: 'system' | 'serif' | 'mono';
+  h1Size?: 'sm' | 'md' | 'lg';
+  h2Size?: 'sm' | 'md' | 'lg';
+  bodySize?: 'sm' | 'md' | 'lg';
+  lineHeight?: 'normal' | 'relaxed' | 'loose';
+  textAlign?: 'left' | 'center' | 'justify';
+};
+
 export type BlogPost = {
   slug: string;
+  contentType?: 'post' | 'page';
   title: string;
   description: string;
   category: string;
@@ -24,4 +53,7 @@ export type BlogPost = {
   sourceUrl?: string;
   sourceName?: string;
   sourceImageUrl?: string;
+  contentBlocks?: ContentBlock[];
+  widgets?: PageWidget[];
+  typography?: PostTypography;
 };

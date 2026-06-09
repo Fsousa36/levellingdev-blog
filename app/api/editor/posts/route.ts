@@ -73,7 +73,10 @@ export async function POST(request: NextRequest) {
     sortOrder: 0,
     sourceUrl: body.sourceUrl?.trim() || undefined,
     sourceName: body.sourceName?.trim() || undefined,
-    sourceImageUrl: body.sourceImageUrl?.trim() || body.sourceUrl?.trim() || undefined
+    sourceImageUrl: body.sourceImageUrl?.trim() || body.sourceUrl?.trim() || undefined,
+    contentBlocks: body.contentBlocks ?? [],
+    widgets: body.widgets ?? [],
+    typography: body.typography ?? {}
   };
 
   await upsertDatabasePost(post, { publishedDefault: false });

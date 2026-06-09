@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, Cpu, ExternalLink, Layers3, Sparkles } from 'lucide-react';
 import { TopicLab } from './components/topic-lab';
-import { getAllPosts } from './lib/blog';
+import { getAllPosts, getCategories } from './lib/blog';
 
 const siteUrl = 'https://levelingdev.com.br';
 
@@ -9,6 +9,15 @@ export const dynamic = 'force-dynamic';
 
 function stripInlineLinks(text: string) {
   return text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1');
+}
+
+function categorySlug(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function Header() {
@@ -69,6 +78,7 @@ function Footer() {
 
 export default async function Home() {
   const posts = await getAllPosts();
+  const categories = await getCategories();
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
@@ -160,6 +170,18 @@ export default async function Home() {
             Cada card abre uma pagina completa, com contexto, leitura tecnica e texto revisado para ficar claro,
             util e pronto para decisao pratica.
           </p>
+        </div>
+
+        <div className="mb-8 flex flex-wrap gap-2">
+          {categories.map((category) => (
+            <Link
+              key={category.name}
+              href={`/categoria/${categorySlug(category.name)}`}
+              className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-cyan/50 hover:text-cyan"
+            >
+              {category.name} ({category.total})
+            </Link>
+          ))}
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
