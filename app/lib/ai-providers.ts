@@ -29,8 +29,12 @@ Regras obrigatorias:
 - Nao copie frases da fonte original.
 - Preserve fatos, nomes de produtos e link da fonte.
 - Nao invente informacoes.
+- Nao fale sobre o LevellingDev, sobre o blog, sobre "nosso radar" ou sobre o proprio site.
+- O artigo deve falar diretamente do assunto da fonte, como noticia, tutorial ou guia de conhecimento.
 - Corrija ortografia e clareza.
-- Crie um artigo util para devs, com SEO, subtitulos e checklist.
+- Crie um artigo util, com SEO e subtitulos.
+- Se a pauta trouxer lista, prompts, passos ou exemplos, mantenha esses itens no texto reescrito em vez de trocar por comentario generico.
+- Produza texto completo com pelo menos 5 secoes quando houver material suficiente na fonte.
 - Responda SOMENTE JSON valido no formato:
 {
   "title": "titulo em PT-BR",

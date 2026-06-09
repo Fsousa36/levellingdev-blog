@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Clock3, ExternalLink } from 'lucide-react';
 import { getPostBySlug } from '../../lib/blog';
-import { getParagraphReferences, getPostReferences } from '../../lib/references';
 
 const siteUrl = 'https://levelingdev.com.br';
 
@@ -83,6 +83,46 @@ function isDirectVideo(value?: string) {
   return Boolean(value && (/^data:video\//.test(value) || /\.(mp4|webm|ogg)(\?|$)/i.test(value)));
 }
 
+function isSafeExternalUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function renderInlineLinks(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const [, label, href] = match;
+    nodes.push(
+      isSafeExternalUrl(href) ? (
+        <a key={`${href}-${match.index}`} href={href} target="_blank" rel="noreferrer">
+          {label}
+        </a>
+      ) : (
+        label
+      )
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [text];
+}
+
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
   const post = await getPostBySlug(slug);
@@ -91,7 +131,6 @@ export default async function BlogPostPage({ params }: PageProps) {
     notFound();
   }
   const youtubeEmbedUrl = getYoutubeEmbedUrl(post.videoUrl);
-  const postReferences = getPostReferences(post);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -168,59 +207,15 @@ export default async function BlogPostPage({ params }: PageProps) {
         ) : null}
 
         <div className="prose prose-lg prose-invert prose-custom mt-10 max-w-none">
-          {post.sections.map((section, sectionIndex) => (
+          {post.sections.map((section) => (
             <section key={section.heading}>
-              <h2>{section.heading}</h2>
-              {section.body.map((paragraph, paragraphIndex) => {
-                const paragraphReferences = getParagraphReferences(post, sectionIndex, paragraphIndex);
-
-                return (
-                  <div key={paragraph}>
-                    <p>{paragraph}</p>
-                    {paragraphReferences.length > 0 ? (
-                      <p className="not-prose -mt-2 mb-7 flex flex-wrap gap-2 text-xs text-slate-400">
-                        <span className="text-slate-500">Base:</span>
-                        {paragraphReferences.map((link) => (
-                          <a
-                            key={`${paragraph}-${link.href}`}
-                            href={link.href}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-cyan transition hover:border-cyan/50 hover:text-white"
-                          >
-                            {link.label}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ))}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
+              {section.heading && section.heading !== 'Editorial completo' ? <h2>{section.heading}</h2> : null}
+              {section.body.map((paragraph) => (
+                <p key={paragraph}>{renderInlineLinks(paragraph)}</p>
+              ))}
             </section>
           ))}
-
         </div>
-
-        {postReferences.length > 0 ? (
-        <section className="mt-12 rounded-lg border border-white/10 bg-white/[0.035] p-6">
-          <h2 className="text-xl font-semibold text-white">Links para aprofundar</h2>
-          <div className="mt-5 grid gap-3">
-            {postReferences.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-200 transition hover:border-cyan/50 hover:text-cyan"
-              >
-                {link.label}
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ))}
-          </div>
-        </section>
-        ) : null}
       </article>
     </main>
   );

@@ -1,11 +1,10 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit3,
   Eye,
   EyeOff,
-  FileVideo,
   ImagePlus,
   Link2,
   PencilLine,
@@ -145,6 +144,9 @@ export function EditorClient() {
   const [configuredSettings, setConfiguredSettings] = useState<SettingsState>({});
   const [remoteTextModels, setRemoteTextModels] = useState<string[]>([]);
   const [remoteImageModels, setRemoteImageModels] = useState<string[]>([]);
+  const [manualLinkUrl, setManualLinkUrl] = useState('');
+  const summaryRef = useRef<HTMLTextAreaElement | null>(null);
+  const contentRef = useRef<HTMLTextAreaElement | null>(null);
 
   const editingLabel = useMemo(() => (editingSlug ? 'Atualizar rascunho' : 'Salvar rascunho'), [editingSlug]);
 
@@ -304,6 +306,30 @@ export function EditorClient() {
     reader.readAsDataURL(file);
   }
 
+  function applyManualLink(field: 'summary' | 'content') {
+    const url = manualLinkUrl.trim();
+    const textarea = field === 'summary' ? summaryRef.current : contentRef.current;
+
+    if (!url || !/^https?:\/\//i.test(url)) {
+      setEditorMessage('Cole uma URL valida com http:// ou https:// para aplicar o link.');
+      return;
+    }
+
+    if (!textarea) {
+      return;
+    }
+
+    const currentValue = form[field];
+    const start = textarea.selectionStart ?? currentValue.length;
+    const end = textarea.selectionEnd ?? currentValue.length;
+    const selectedText = currentValue.slice(start, end).trim() || 'texto do link';
+    const linkedText = `[${selectedText}](${url})`;
+    const nextValue = `${currentValue.slice(0, start)}${linkedText}${currentValue.slice(end)}`;
+
+    setField(field, nextValue);
+    setEditorMessage('Link aplicado no texto. Na pagina publica ele aparece dentro do paragrafo, sem bloco Base ou lista extra.');
+  }
+
   async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -422,20 +448,6 @@ export function EditorClient() {
     }
   }
 
-  async function generateImage(slug: string) {
-    try {
-      setMessage('Gerando imagem editorial para o post...');
-      await request('/api/editor/image', {
-        method: 'POST',
-        body: JSON.stringify({ slug, provider: imageProvider, model: imageModel.trim() || undefined })
-      });
-      setMessage('Imagem editorial gerada e salva no rascunho.');
-      await loadPosts();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao gerar imagem.');
-    }
-  }
-
   async function fetchImageFromSource(slug: string, sourceImageUrl?: string) {
     try {
       setMessage('Buscando imagem diretamente no link da fonte...');
@@ -447,18 +459,6 @@ export function EditorClient() {
       await loadPosts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erro ao buscar imagem da fonte.');
-    }
-  }
-
-  async function generateVideoPrompt(slug: string) {
-    try {
-      const data = await request('/api/editor/video', {
-        method: 'POST',
-        body: JSON.stringify({ slug })
-      });
-      setMessage(`Prompt de video: ${data.video.prompt}`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro ao gerar prompt de video.');
     }
   }
 
@@ -699,6 +699,22 @@ export function EditorClient() {
             placeholder="Titulo do editorial"
             className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
           />
+          <div className="grid gap-2 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-[1fr_auto]">
+            <input
+              value={manualLinkUrl}
+              onChange={(event) => setManualLinkUrl(event.target.value)}
+              placeholder="Cole a URL da fonte para marcar uma palavra selecionada como link"
+              className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 placeholder:text-slate-500 focus:ring-2"
+            />
+            <button
+              type="button"
+              onClick={() => applyManualLink('content')}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan/30 px-3 text-sm font-semibold text-cyan transition hover:bg-cyan/10"
+            >
+              <Link2 className="h-4 w-4" />
+              Link no texto
+            </button>
+          </div>
           <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
             Prompt para IA
             <textarea
@@ -713,6 +729,7 @@ export function EditorClient() {
             <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Resumo
               <textarea
+                ref={summaryRef}
                 value={form.summary}
                 onChange={(event) => setField('summary', event.target.value)}
                 required
@@ -724,6 +741,7 @@ export function EditorClient() {
             <label className="grid gap-1.5 text-xs font-semibold text-slate-200">
               Texto da matéria
               <textarea
+                ref={contentRef}
                 value={form.content}
                 onChange={(event) => setField('content', event.target.value)}
                 rows={10}
@@ -875,17 +893,9 @@ export function EditorClient() {
                       <PencilLine className="h-4 w-4" />
                       Reescrever PT-BR
                     </button>
-                    <button type="button" onClick={() => generateImage(post.slug)} className="editor-button">
-                      <ImagePlus className="h-4 w-4" />
-                      Gerar imagem
-                    </button>
                     <button type="button" onClick={() => fetchImageFromSource(post.slug)} className="editor-button">
                       <Link2 className="h-4 w-4" />
                       Imagem da fonte
-                    </button>
-                    <button type="button" onClick={() => generateVideoPrompt(post.slug)} className="editor-button">
-                      <FileVideo className="h-4 w-4" />
-                      Prompt video
                     </button>
                     {post.externalLinks[0] ? (
                       <a className="editor-button" href={post.externalLinks[0].href} target="_blank" rel="noreferrer">

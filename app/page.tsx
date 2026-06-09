@@ -7,6 +7,10 @@ const siteUrl = 'https://levelingdev.com.br';
 
 export const dynamic = 'force-dynamic';
 
+function stripInlineLinks(text: string) {
+  return text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1');
+}
+
 function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/86 backdrop-blur-xl">
@@ -153,8 +157,8 @@ export default async function Home() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan">Artigos principais</p>
           <h2 className="mt-3 text-3xl font-semibold text-white">Assuntos atuais, escritos do zero</h2>
           <p className="mt-4 leading-7 text-slate-300">
-            Cada card abre uma pagina completa, com contexto, checklist, links de referencia e texto reescrito em voz
-            propria para nao parecer copia de relatorio.
+            Cada card abre uma pagina completa, com contexto, leitura tecnica e texto revisado para ficar claro,
+            util e pronto para decisao pratica.
           </p>
         </div>
 
@@ -174,7 +178,7 @@ export default async function Home() {
                 <h3 className="mt-5 text-xl font-semibold leading-snug text-white group-hover:text-cyan">
                   {post.title}
                 </h3>
-                <p className="summary-clamp mt-4 text-sm leading-6 text-slate-300">{post.description}</p>
+                <p className="summary-clamp mt-4 text-sm leading-6 text-slate-300">{stripInlineLinks(post.description)}</p>
                 <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan">
                   Ler artigo completo
                   <ArrowRight className="h-4 w-4" />
@@ -189,7 +193,7 @@ export default async function Home() {
         <div className="mx-auto grid max-w-7xl gap-6 px-5 py-12 md:grid-cols-3">
           {[
             ['Pesquisa', 'Temas escolhidos a partir de sinais de mercado, pesquisas de devs e documentacao tecnica.'],
-            ['Pratica', 'Cada texto termina em checklist para voce aplicar no projeto sem se perder no hype.'],
+            ['Pratica', 'Cada texto prioriza impacto real, riscos, comandos e decisoes que ajudam no projeto.'],
             ['SEO limpo', 'Rotas estaticas, sitemap, robots, metadados e conteudo com intencao clara de busca.']
           ].map(([title, copy]) => (
             <div key={title} className="rounded-lg border border-white/10 bg-black/20 p-5">

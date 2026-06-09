@@ -59,9 +59,9 @@ export function rewritePostForPtBr(post: BlogPost): BlogPost {
     ),
     sections: [
       {
-        heading: 'Resumo em portugues',
+        heading: 'Resumo da pauta',
         body: [
-          `${cleanTitle} e uma pauta relevante para quem acompanha tecnologia, IA, desenvolvimento e infraestrutura. Em vez de copiar a publicacao original, este texto organiza o assunto em linguagem propria e destaca o que merece atencao pratica.`,
+          `${cleanTitle} e uma pauta relevante para quem acompanha tecnologia, IA, desenvolvimento e infraestrutura. Este rascunho organiza o assunto em linguagem propria e destaca o que merece atencao pratica.`,
           cleanDescription
         ]
       },
@@ -76,7 +76,7 @@ export function rewritePostForPtBr(post: BlogPost): BlogPost {
         heading: 'Como avaliar sem cair em hype',
         body: [
           `${sourceLabel} Leia a publicacao completa, confira a data, procure changelogs relacionados e valide se a novidade realmente resolve um problema do seu projeto.`,
-          'No LevellingDev, a recomendacao e transformar cada noticia em uma pergunta pratica: isso melhora entrega, reduz risco ou simplifica uma decisao tecnica? Se sim, vira candidato a tutorial mais profundo.'
+          'A recomendacao editorial e transformar cada noticia em uma pergunta pratica: isso melhora entrega, reduz risco ou simplifica uma decisao tecnica? Se sim, vira candidato a tutorial mais profundo.'
         ]
       }
     ],
