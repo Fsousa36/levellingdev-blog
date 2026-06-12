@@ -13,8 +13,8 @@ import { useBuilder } from '../context/BuilderContext';
 const BlockToolbar: React.FC<{
     blockId: string;
     label: string;
-    dragListeners: Record<string, unknown>;
-    dragAttributes: Record<string, unknown>;
+    dragListeners: any;
+    dragAttributes: any;
 }> = ({ blockId, label, dragListeners, dragAttributes }) => {
     const { deleteBlock } = useBuilder();
     return (
@@ -135,7 +135,7 @@ const GridBlock: React.FC<{ block: Block }> = ({ block }) => {
             onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
             className="group"
         >
-            <BlockToolbar blockId={block.id} label={`GRID (${block.children?.length ?? 0} colunas)`} dragListeners={listeners as Record<string,unknown>} dragAttributes={attributes as Record<string,unknown>} />
+            <BlockToolbar blockId={block.id} label={`GRID (${block.children?.length ?? 0} colunas)`} dragListeners={listeners} dragAttributes={attributes} />
 
             <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
                 {block.children?.map((col) => (
@@ -174,7 +174,7 @@ const ContainerBlock: React.FC<{ block: Block }> = ({ block }) => {
             ref={setNodeRef}
             style={{
                 transform: CSS.Transform.toString(transform),
-                transition,
+                transition: transition ? `${transition}, border-color 0.15s` : 'border-color 0.15s',
                 opacity: isDragging ? 0.4 : 1,
                 border: borderColor,
                 borderRadius: '10px',
@@ -184,12 +184,11 @@ const ContainerBlock: React.FC<{ block: Block }> = ({ block }) => {
                 position: 'relative',
                 marginTop: '20px',
                 marginBottom: '4px',
-                transition: 'border-color 0.15s',
             }}
             onClick={(e) => { e.stopPropagation(); selectBlock(block.id); }}
             className="group"
         >
-            <BlockToolbar blockId={block.id} label="SEÇÃO" dragListeners={listeners as Record<string,unknown>} dragAttributes={attributes as Record<string,unknown>} />
+            <BlockToolbar blockId={block.id} label="SEÇÃO" dragListeners={listeners} dragAttributes={attributes} />
 
             <SortableContext
                 items={block.children?.map((c) => c.id) ?? []}
@@ -258,8 +257,8 @@ const LeafBlock: React.FC<{ block: Block }> = ({ block }) => {
             <BlockToolbar
                 blockId={block.id}
                 label={block.type.toUpperCase()}
-                dragListeners={listeners as Record<string,unknown>}
-                dragAttributes={attributes as Record<string,unknown>}
+                dragListeners={listeners}
+                dragAttributes={attributes}
             />
             <LeafContent block={block} />
         </div>
