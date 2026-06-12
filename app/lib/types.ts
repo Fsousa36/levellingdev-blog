@@ -10,15 +10,16 @@ export type ContentBlock = {
 
 export type PageWidget = {
   id: string;
-  type: 'note' | 'link' | 'image' | 'video';
-  area: 'left' | 'right' | 'middle' | 'afterArticle' | 'footer';
+  type: 'note' | 'link' | 'image' | 'video' | 'social';
+  area: 'top' | 'left' | 'right' | 'middle' | 'afterArticle' | 'footer';
   title: string;
   content: string;
   url?: string;
 };
 
 export type PostTypography = {
-  fontFamily?: 'system' | 'serif' | 'mono';
+  fontFamily?: 'system' | 'serif' | 'mono' | 'inter' | 'roboto' | 'lato' | 'merriweather' | 'playfair' | 'montserrat' | 'poppins' | 'sourceCodePro';
+  fontWeight?: 'regular' | 'medium' | 'semibold' | 'bold';
   h1Size?: 'sm' | 'md' | 'lg';
   h2Size?: 'sm' | 'md' | 'lg';
   bodySize?: 'sm' | 'md' | 'lg';

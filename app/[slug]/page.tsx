@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { getPageBySlug } from '../lib/blog';
-import type { ContentBlock, PageWidget } from '../lib/types';
+import type { ContentBlock, PageWidget, PostTypography } from '../lib/types';
 
 const siteUrl = 'https://levelingdev.com.br';
 
@@ -54,6 +54,72 @@ function renderInlineLinks(text: string) {
       </a>
     );
   });
+}
+
+function getMarkdownLinks(text: string) {
+  return Array.from(text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g)).map((match) => ({
+    label: match[1],
+    href: match[2]
+  }));
+}
+
+const typographyClasses = {
+  fontFamily: {
+    system: '',
+    serif: 'font-serif',
+    mono: 'font-mono',
+    inter: '[font-family:Inter,sans-serif]',
+    roboto: '[font-family:Roboto,sans-serif]',
+    lato: '[font-family:Lato,sans-serif]',
+    merriweather: '[font-family:Merriweather,serif]',
+    playfair: '[font-family:Playfair_Display,serif]',
+    montserrat: '[font-family:Montserrat,sans-serif]',
+    poppins: '[font-family:Poppins,sans-serif]',
+    sourceCodePro: '[font-family:Source_Code_Pro,monospace]'
+  },
+  fontWeight: {
+    regular: 'font-normal',
+    medium: 'font-medium',
+    semibold: 'font-semibold',
+    bold: 'font-bold'
+  },
+  h1Size: {
+    sm: 'text-3xl sm:text-4xl',
+    md: 'text-4xl sm:text-5xl',
+    lg: 'text-5xl sm:text-6xl'
+  },
+  h2Size: {
+    sm: 'text-2xl',
+    md: 'text-3xl',
+    lg: 'text-4xl'
+  },
+  bodySize: {
+    sm: 'prose-base',
+    md: 'prose-lg',
+    lg: 'prose-xl'
+  },
+  lineHeight: {
+    normal: 'leading-7',
+    relaxed: 'leading-8',
+    loose: 'leading-9'
+  },
+  textAlign: {
+    left: 'text-left',
+    center: 'text-center',
+    justify: 'text-justify'
+  }
+};
+
+function getTypographyClasses(typography?: PostTypography) {
+  return {
+    font: typographyClasses.fontFamily[typography?.fontFamily ?? 'system'],
+    weight: typographyClasses.fontWeight[typography?.fontWeight ?? 'regular'],
+    h1: typographyClasses.h1Size[typography?.h1Size ?? 'md'],
+    h2: typographyClasses.h2Size[typography?.h2Size ?? 'md'],
+    body: typographyClasses.bodySize[typography?.bodySize ?? 'md'],
+    line: typographyClasses.lineHeight[typography?.lineHeight ?? 'relaxed'],
+    align: typographyClasses.textAlign[typography?.textAlign ?? 'left']
+  };
 }
 
 function getBlocks(page: NonNullable<Awaited<ReturnType<typeof getPageBySlug>>>): ContentBlock[] {
@@ -162,6 +228,32 @@ function renderBlock(block: ContentBlock) {
 }
 
 function WidgetCard({ widget }: { widget: PageWidget }) {
+  const socialLinks = widget.type === 'social' ? getMarkdownLinks(widget.content) : [];
+
+  if (widget.type === 'social') {
+    return (
+      <div className="rounded-lg border border-cyan/20 bg-cyan/5 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan">redes sociais</p>
+        <h3 className="mt-2 font-semibold text-white">{widget.title}</h3>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(socialLinks.length ? socialLinks : widget.url ? [{ label: widget.title, href: widget.url }] : []).map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm font-semibold text-slate-200 transition hover:border-cyan/50 hover:text-cyan"
+            >
+              {link.label}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ))}
+        </div>
+        {socialLinks.length === 0 && !widget.url ? <p className="mt-3 text-sm leading-6 text-slate-300">{renderInlineLinks(widget.content)}</p> : null}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan">{widget.area}</p>
@@ -183,19 +275,29 @@ export default async function DynamicPage({ params }: PageProps) {
 
   const blocks = getBlocks(page);
   const widgets = page.widgets ?? [];
+  const typography = getTypographyClasses(page.typography);
+  const topWidgets = widgets.filter((widget) => widget.area === 'top');
+  const footerWidgets = widgets.filter((widget) => widget.area === 'footer');
 
   return (
     <main className="min-h-screen">
-      <article className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
+      <article className={`mx-auto max-w-6xl px-5 py-10 sm:py-14 ${typography.font}`}>
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 transition hover:text-cyan">
           <ArrowLeft className="h-4 w-4" />
           Voltar para Home
         </Link>
         <header className="mt-10 border-b border-white/10 pb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan">Pagina</p>
-          <h1 className="mt-5 text-4xl font-semibold leading-tight text-white sm:text-5xl">{page.title}</h1>
+          <h1 className={`mt-5 leading-tight text-white ${typography.h1} ${typography.weight}`}>{page.title}</h1>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300">{page.description}</p>
         </header>
+        {topWidgets.length > 0 ? (
+          <section className="mt-8 grid gap-4 md:grid-cols-2">
+            {topWidgets.map((widget) => (
+              <WidgetCard key={widget.id} widget={widget} />
+            ))}
+          </section>
+        ) : null}
         <img src={page.image} alt={page.imageAlt} className="mt-8 aspect-[16/7] w-full rounded-lg object-cover" />
         <div className="mt-10 grid gap-8 lg:grid-cols-[220px_1fr_220px]">
           <aside className="hidden space-y-4 lg:block">
@@ -203,7 +305,7 @@ export default async function DynamicPage({ params }: PageProps) {
               <WidgetCard key={widget.id} widget={widget} />
             ))}
           </aside>
-          <div className="prose prose-lg prose-invert prose-custom max-w-none">
+          <div className={`prose prose-invert prose-custom max-w-none ${typography.body} ${typography.weight}`}>
             {blocks.map(renderBlock)}
             <div className="clear-both" />
           </div>
@@ -215,11 +317,20 @@ export default async function DynamicPage({ params }: PageProps) {
         </div>
         <section className="mt-12 grid gap-4 md:grid-cols-2">
           {widgets
-            .filter((widget) => ['middle', 'afterArticle', 'footer'].includes(widget.area))
+            .filter((widget) => ['middle', 'afterArticle'].includes(widget.area))
             .map((widget) => (
               <WidgetCard key={widget.id} widget={widget} />
             ))}
         </section>
+        {footerWidgets.length > 0 ? (
+          <section className="mt-12 border-t border-white/10 pt-8">
+            <div className="grid gap-4 md:grid-cols-3">
+              {footerWidgets.map((widget) => (
+                <WidgetCard key={widget.id} widget={widget} />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </article>
     </main>
   );

@@ -88,7 +88,21 @@ const typographyClasses = {
   fontFamily: {
     system: '',
     serif: 'font-serif',
-    mono: 'font-mono'
+    mono: 'font-mono',
+    inter: '[font-family:Inter,sans-serif]',
+    roboto: '[font-family:Roboto,sans-serif]',
+    lato: '[font-family:Lato,sans-serif]',
+    merriweather: '[font-family:Merriweather,serif]',
+    playfair: '[font-family:Playfair_Display,serif]',
+    montserrat: '[font-family:Montserrat,sans-serif]',
+    poppins: '[font-family:Poppins,sans-serif]',
+    sourceCodePro: '[font-family:Source_Code_Pro,monospace]'
+  },
+  fontWeight: {
+    regular: 'font-normal',
+    medium: 'font-medium',
+    semibold: 'font-semibold',
+    bold: 'font-bold'
   },
   h1Size: {
     sm: 'text-3xl sm:text-4xl',
@@ -120,6 +134,7 @@ const typographyClasses = {
 function getTypographyClasses(typography?: PostTypography) {
   return {
     font: typographyClasses.fontFamily[typography?.fontFamily ?? 'system'],
+    weight: typographyClasses.fontWeight[typography?.fontWeight ?? 'regular'],
     h1: typographyClasses.h1Size[typography?.h1Size ?? 'md'],
     h2: typographyClasses.h2Size[typography?.h2Size ?? 'md'],
     body: typographyClasses.bodySize[typography?.bodySize ?? 'md'],
@@ -166,6 +181,13 @@ function renderInlineLinks(text: string): ReactNode[] {
   }
 
   return nodes.length > 0 ? nodes : [text];
+}
+
+function getMarkdownLinks(text: string) {
+  return Array.from(text.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g)).map((match) => ({
+    label: match[1],
+    href: match[2]
+  }));
 }
 
 function getFallbackBlocks(post: Awaited<ReturnType<typeof getPostBySlug>>): ContentBlock[] {
@@ -237,7 +259,7 @@ function renderVideo(url: string, title: string) {
 function renderBlock(block: ContentBlock, typography: ReturnType<typeof getTypographyClasses>) {
   if (block.type === 'h1') {
     return (
-      <h1 key={block.id} className={`${typography.h1} ${typography.line}`}>
+      <h1 key={block.id} className={`${typography.h1} ${typography.line} ${typography.weight}`}>
         {renderInlineLinks(block.content)}
       </h1>
     );
@@ -245,7 +267,7 @@ function renderBlock(block: ContentBlock, typography: ReturnType<typeof getTypog
 
   if (block.type === 'h2') {
     return (
-      <h2 key={block.id} className={`${typography.h2} ${typography.line}`}>
+      <h2 key={block.id} className={`${typography.h2} ${typography.line} ${typography.weight}`}>
         {renderInlineLinks(block.content)}
       </h2>
     );
@@ -285,6 +307,32 @@ function renderBlock(block: ContentBlock, typography: ReturnType<typeof getTypog
 }
 
 function WidgetCard({ widget }: { widget: PageWidget }) {
+  const socialLinks = widget.type === 'social' ? getMarkdownLinks(widget.content) : [];
+
+  if (widget.type === 'social') {
+    return (
+      <div className="rounded-lg border border-cyan/20 bg-cyan/5 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan">redes sociais</p>
+        <h3 className="mt-2 font-semibold text-white">{widget.title}</h3>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(socialLinks.length ? socialLinks : widget.url ? [{ label: widget.title, href: widget.url }] : []).map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm font-semibold text-slate-200 transition hover:border-cyan/50 hover:text-cyan"
+            >
+              {link.label}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ))}
+        </div>
+        {socialLinks.length === 0 && !widget.url ? <p className="mt-3 text-sm leading-6 text-slate-300">{renderInlineLinks(widget.content)}</p> : null}
+      </div>
+    );
+  }
+
   const content = (
     <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan">{widget.type}</p>
@@ -317,6 +365,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   const typography = getTypographyClasses(post.typography);
   const blocks = post.contentBlocks && post.contentBlocks.length > 0 ? post.contentBlocks : getFallbackBlocks(post);
   const widgets = post.widgets ?? [];
+  const topWidgets = widgets.filter((widget) => widget.area === 'top');
   const leftWidgets = widgets.filter((widget) => widget.area === 'left');
   const rightWidgets = widgets.filter((widget) => widget.area === 'right');
   const middleWidgets = widgets.filter((widget) => widget.area === 'middle');
@@ -345,7 +394,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   return (
     <main className="min-h-screen">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <article className={`mx-auto max-w-7xl px-5 py-10 sm:py-14 ${typography.font}`}>
+        <article className={`mx-auto max-w-7xl px-5 py-10 sm:py-14 ${typography.font}`}>
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 transition hover:text-cyan">
           <ArrowLeft className="h-4 w-4" />
           Voltar para Home
@@ -353,7 +402,7 @@ export default async function BlogPostPage({ params }: PageProps) {
 
         <header className="mt-10 border-b border-white/10 pb-10">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan">{post.category}</p>
-          <h1 className={`mt-5 font-semibold text-white ${typography.h1}`}>{post.title}</h1>
+          <h1 className={`mt-5 text-white ${typography.h1} ${typography.weight}`}>{post.title}</h1>
           <p className="mt-6 text-lg leading-8 text-slate-300">{post.description}</p>
           <div className="mt-7 flex flex-wrap gap-4 text-sm text-slate-400">
             <span className="inline-flex items-center gap-2">
@@ -366,6 +415,14 @@ export default async function BlogPostPage({ params }: PageProps) {
             </span>
           </div>
         </header>
+
+        {topWidgets.length > 0 ? (
+          <section className="mt-8 grid gap-4 md:grid-cols-2">
+            {topWidgets.map((widget) => (
+              <WidgetCard key={widget.id} widget={widget} />
+            ))}
+          </section>
+        ) : null}
 
         <img src={post.image} alt={post.imageAlt} className="mt-8 aspect-[16/8] w-full rounded-lg object-cover" />
 
@@ -404,7 +461,7 @@ export default async function BlogPostPage({ params }: PageProps) {
             ))}
           </aside>
 
-          <div className={`prose prose-invert prose-custom max-w-none ${typography.body}`}>
+          <div className={`prose prose-invert prose-custom max-w-none ${typography.body} ${typography.weight}`}>
             {blocks.map((block, index) => (
               <FragmentWithMiddle key={block.id} index={index} middleWidgets={middleWidgets} typography={typography} block={block} />
             ))}
