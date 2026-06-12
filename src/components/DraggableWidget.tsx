@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { BlockType } from '../types/builder';
@@ -7,9 +7,10 @@ import { BlockType } from '../types/builder';
 interface DraggableWidgetProps {
     type: BlockType;
     label: string;
+    icon?: ReactNode;
 }
 
-export const DraggableWidget: React.FC<DraggableWidgetProps> = ({ type, label }) => {
+export const DraggableWidget: React.FC<DraggableWidgetProps> = ({ type, label, icon }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `widget-${type}`,
         data: { type },
@@ -29,13 +30,14 @@ export const DraggableWidget: React.FC<DraggableWidgetProps> = ({ type, label })
             {...listeners}
             {...attributes}
             className={`
-                p-3.5 bg-ink hover:bg-line/40 text-slate-300 text-sm font-medium 
-                rounded-lg border border-line hover:border-cyan hover:text-cyan 
-                cursor-grab active:cursor-grabbing select-none transition-all duration-200 shadow-sm
-                ${isDragging ? 'shadow-glow border-cyan text-cyan' : ''}
+                flex flex-col items-center justify-center gap-1.5 p-2 h-16 bg-ink/80 hover:bg-[#263241] text-slate-300
+                rounded border border-transparent hover:border-cyan/50
+                cursor-grab active:cursor-grabbing select-none transition-all duration-200
+                ${isDragging ? 'shadow-glow border-cyan text-cyan scale-105' : ''}
             `}
         >
-            {label}
+            {icon && <div className="text-slate-400 [&>svg]:w-4 [&>svg]:h-4 group-hover:text-cyan">{icon}</div>}
+            <span className="text-[10px] font-medium leading-tight">{label}</span>
         </div>
     );
 };

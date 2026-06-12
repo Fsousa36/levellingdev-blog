@@ -2,18 +2,30 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Cpu, Layers3, Monitor, Tablet, Smartphone, Download } from 'lucide-react';
-import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import {
+    Cpu, Layers3, Monitor, Tablet, Smartphone, Download,
+    Type, Maximize, LayoutGrid, Box, ImageIcon, Video,
+    MousePointerClick, SeparatorHorizontal, Heading1, AlignLeft
+} from 'lucide-react';
+import {
+    DndContext,
+    DragEndEvent,
+    DragOverlay,
+    DragStartEvent,
+    useSensor,
+    useSensors,
+    PointerSensor,
+    closestCenter,
+} from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
-// Usar caminhos relativos NUNCA @/
 import { BuilderProvider, useBuilder } from '../../src/context/BuilderContext';
 import { CanvasRenderer } from '../../src/components/CanvasRenderer';
 import { PropertyInspector } from '../../src/components/PropertyInspector';
 import { DraggableWidget } from '../../src/components/DraggableWidget';
 import { DroppableCanvas } from '../../src/components/DroppableCanvas';
+import { Block } from '../../src/types/builder';
 
-// Header fornecido no prompt
 export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/86 backdrop-blur-xl">
@@ -32,7 +44,6 @@ export function Header() {
   );
 }
 
-// Footer fornecido no prompt
 export function Footer() {
   return (
     <footer className="border-t border-white/10 px-5 py-10 mt-auto">
@@ -43,37 +54,60 @@ export function Footer() {
   );
 }
 
+// Mapeamento de ícones + labels para o drag overlay
+const widgetMeta: Record<string, { label: string }> = {
+    container: { label: 'Seção' },
+    grid: { label: 'Colunas (Grid)' },
+    heading: { label: 'Título' },
+    text: { label: 'Texto' },
+    image: { label: 'Imagem' },
+    video: { label: 'Vídeo' },
+    button: { label: 'Botão' },
+    divider: { label: 'Divisor' },
+    spacer: { label: 'Espaçador' },
+};
+
 function EditorLayout() {
     const { blocks, addBlock, moveBlock } = useBuilder();
     const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+    const [draggingType, setDraggingType] = useState<string | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 5,
-            },
+            activationConstraint: { distance: 8 },
         })
     );
 
+    function handleDragStart(event: DragStartEvent) {
+        const { active } = event;
+        if (active.id.toString().startsWith('widget-')) {
+            setDraggingType(active.data.current?.type ?? null);
+        }
+    }
+
     function handleDragEnd(event: DragEndEvent) {
+        setDraggingType(null);
         const { over, active } = event;
 
+        // Nada foi solto sobre uma área válida
         if (!over) return;
 
-        // Bloco novo da sidebar
-        if (active.id.toString().startsWith('widget-')) {
-            if (over.id === 'main-canvas') {
-                const type = active.data.current?.type;
-                if (type) {
-                    addBlock(null, type);
-                }
-            }
+        const activeIdStr = active.id.toString();
+        const overIdStr = over.id.toString();
+
+        // ---- NOVO BLOCO ARRASTADO DA SIDEBAR ----
+        if (activeIdStr.startsWith('widget-')) {
+            const type = active.data.current?.type as Block['type'];
+            if (!type) return;
+
+            const parentId = overIdStr === 'main-canvas' ? null : overIdStr;
+            addBlock(parentId, type);
             return;
         }
 
-        // Reordenação de blocos já existentes
-        if (active.id !== over.id && over.id !== 'main-canvas') {
-            moveBlock(active.id.toString(), over.id.toString());
+        // ---- REORDENAÇÃO DE BLOCOS JÁ EXISTENTES ----
+        if (activeIdStr !== overIdStr) {
+            moveBlock(activeIdStr, overIdStr);
         }
     }
 
@@ -97,26 +131,29 @@ function EditorLayout() {
             {/* ACTION BAR */}
             <div className="border-b border-line bg-panel px-6 py-3 flex justify-between items-center z-20">
                 <h1 className="text-slate-200 text-sm font-semibold tracking-wide flex items-center gap-2 w-1/3">
-                    <Layers3 className="h-4 w-4 text-mint" />
+                    <Layers3 className="h-4 w-4 text-cyan" />
                     Visual Builder
                 </h1>
-                
+
                 {/* DEVICE PREVIEW TOGGLE */}
                 <div className="flex items-center gap-1 bg-ink border border-line rounded-lg p-1 w-1/3 justify-center">
-                    <button 
+                    <button
                         onClick={() => setPreviewMode('desktop')}
+                        title="Desktop"
                         className={`p-1.5 rounded-md transition-colors ${previewMode === 'desktop' ? 'bg-panel text-cyan shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                     >
                         <Monitor className="h-4 w-4" />
                     </button>
-                    <button 
+                    <button
                         onClick={() => setPreviewMode('tablet')}
+                        title="Tablet"
                         className={`p-1.5 rounded-md transition-colors ${previewMode === 'tablet' ? 'bg-panel text-cyan shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                     >
                         <Tablet className="h-4 w-4" />
                     </button>
-                    <button 
+                    <button
                         onClick={() => setPreviewMode('mobile')}
+                        title="Mobile"
                         className={`p-1.5 rounded-md transition-colors ${previewMode === 'mobile' ? 'bg-panel text-cyan shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                     >
                         <Smartphone className="h-4 w-4" />
@@ -124,47 +161,79 @@ function EditorLayout() {
                 </div>
 
                 <div className="w-1/3 flex justify-end">
-                    <button className="editor-button" onClick={handleSave}>
-                        <Download className="h-4 w-4 text-cyan" />
+                    <button
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ink border border-line text-sm text-slate-300 hover:text-cyan hover:border-cyan transition-colors"
+                        onClick={handleSave}
+                    >
+                        <Download className="h-4 w-4" />
                         Exportar JSON
                     </button>
                 </div>
             </div>
 
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+            >
                 <div className="flex flex-1 overflow-hidden font-sans">
-                    {/* SIDEBAR ESQUERDA - LISTA DE ELEMENTOS */}
-                    <div className="w-64 bg-panel border-r border-line p-5 space-y-4 flex flex-col z-10 overflow-y-auto">
-                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">
-                            Elementos Arrastáveis
-                        </h3>
-                        <DraggableWidget type="container" label="📦 Seção / Container" />
-                        <DraggableWidget type="text" label="📝 Bloco de Texto" />
-                        <DraggableWidget type="image" label="🖼️ Mídia de Imagem" />
-                        <DraggableWidget type="video" label="🎥 Incorporar Vídeo" />
+
+                    {/* SIDEBAR ESQUERDA */}
+                    <div className="w-[280px] bg-panel border-r border-line flex flex-col z-10 overflow-y-auto shrink-0">
+                        <div className="p-4 bg-ink/50 border-b border-line flex items-center gap-2 text-sm font-semibold text-slate-300 sticky top-0">
+                            <LayoutGrid className="w-4 h-4 text-cyan" />
+                            Elementos
+                        </div>
+
+                        <div className="p-3 grid grid-cols-2 gap-2">
+                            <DraggableWidget type="container" label="Seção"       icon={<Box />} />
+                            <DraggableWidget type="grid"      label="Grid"        icon={<LayoutGrid />} />
+                            <DraggableWidget type="heading"   label="Título"      icon={<Heading1 />} />
+                            <DraggableWidget type="text"      label="Texto"       icon={<AlignLeft />} />
+                            <DraggableWidget type="image"     label="Imagem"      icon={<ImageIcon />} />
+                            <DraggableWidget type="video"     label="Vídeo"       icon={<Video />} />
+                            <DraggableWidget type="button"    label="Botão"       icon={<MousePointerClick />} />
+                            <DraggableWidget type="divider"   label="Divisor"     icon={<SeparatorHorizontal />} />
+                            <DraggableWidget type="spacer"    label="Espaçador"   icon={<Maximize />} />
+                        </div>
                     </div>
 
-                    {/* CANVAS CENTRAL - ÁREA DE DESIGN */}
-                    <div className="flex-1 p-8 overflow-y-auto relative">
+                    {/* CANVAS CENTRAL */}
+                    <div className="flex-1 p-8 overflow-y-auto relative bg-ink/40">
                         <DroppableCanvas previewMode={previewMode}>
-                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                            <SortableContext
+                                items={blocks.map(b => b.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
                                 {blocks.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 border-2 border-dashed border-line rounded-xl bg-ink/50 backdrop-blur-sm">
                                         <p className="font-medium text-sm text-slate-300">O seu Canvas está em branco.</p>
                                         <p className="text-xs text-slate-500 mt-2">Arraste os blocos da esquerda e solte-os aqui.</p>
                                     </div>
                                 ) : (
-                                    blocks.map((block) => <CanvasRenderer key={block.id} block={block} />)
+                                    blocks.map((block) => (
+                                        <CanvasRenderer key={block.id} block={block} />
+                                    ))
                                 )}
                             </SortableContext>
                         </DroppableCanvas>
                     </div>
 
-                    {/* SIDEBAR DIREITA - INSPETOR DE PROPRIEDADES */}
-                    <div className="w-80 h-full border-l border-line bg-panel z-10">
+                    {/* SIDEBAR DIREITA */}
+                    <div className="w-[300px] h-full border-l border-line bg-panel z-10 shrink-0">
                         <PropertyInspector />
                     </div>
                 </div>
+
+                {/* DRAG OVERLAY - fantasma visual enquanto arrasta */}
+                <DragOverlay>
+                    {draggingType ? (
+                        <div className="flex flex-col items-center justify-center gap-2 p-4 bg-panel border border-cyan text-cyan rounded-lg shadow-glow text-[11px] font-semibold opacity-90 w-28">
+                            {widgetMeta[draggingType]?.label ?? draggingType}
+                        </div>
+                    ) : null}
+                </DragOverlay>
             </DndContext>
 
             <Footer />

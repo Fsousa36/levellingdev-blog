@@ -12,20 +12,23 @@ export const DroppableCanvas: React.FC<DroppableCanvasProps> = ({ children, prev
         id: 'main-canvas',
     });
 
-    let maxWidthClass = 'max-w-4xl'; // desktop fallback
-    if (previewMode === 'tablet') maxWidthClass = 'max-w-[768px]';
-    if (previewMode === 'mobile') maxWidthClass = 'max-w-[375px]';
+    let maxWidthStyle = '100%';
+    if (previewMode === 'tablet') maxWidthStyle = '768px';
+    if (previewMode === 'mobile') maxWidthStyle = '375px';
 
     return (
-        <div
-            ref={setNodeRef}
-            className={`mx-auto bg-panel min-h-[75vh] rounded-xl p-6 space-y-4 border transition-all duration-300 ${maxWidthClass} ${
-                isOver 
-                    ? 'border-cyan shadow-glow ring-1 ring-cyan/50' 
-                    : 'border-line shadow-lg'
-            }`}
-        >
-            {children}
+        <div className="flex justify-center w-full min-h-full">
+            <div
+                ref={setNodeRef}
+                style={{ width: '100%', maxWidth: maxWidthStyle }}
+                className={`bg-panel min-h-[75vh] rounded-xl p-6 space-y-4 border transition-all duration-300 ${
+                    isOver 
+                        ? 'border-cyan shadow-glow ring-1 ring-cyan/50' 
+                        : 'border-line shadow-lg'
+                }`}
+            >
+                {children}
+            </div>
         </div>
     );
 };
