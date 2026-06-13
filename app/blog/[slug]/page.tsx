@@ -154,25 +154,32 @@ function isSafeExternalUrl(value: string) {
 
 function renderInlineLinks(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  const inlinePattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = linkPattern.exec(text)) !== null) {
+  while ((match = inlinePattern.exec(text)) !== null) {
     if (match.index > lastIndex) {
       nodes.push(text.slice(lastIndex, match.index));
     }
 
-    const [, label, href] = match;
-    nodes.push(
-      isSafeExternalUrl(href) ? (
-        <a key={`${href}-${match.index}`} href={href} target="_blank" rel="noreferrer">
-          {label}
-        </a>
-      ) : (
-        label
-      )
-    );
+    const [, label, href, boldText, italicText] = match;
+    if (label && href) {
+      nodes.push(
+        isSafeExternalUrl(href) ? (
+          <a key={`${href}-${match.index}`} href={href} target="_blank" rel="noreferrer">
+            {label}
+          </a>
+        ) : (
+          label
+        )
+      );
+    } else if (boldText) {
+      nodes.push(<strong key={`strong-${match.index}`}>{boldText}</strong>);
+    } else if (italicText) {
+      nodes.push(<em key={`em-${match.index}`}>{italicText}</em>);
+    }
+
     lastIndex = match.index + match[0].length;
   }
 
@@ -296,6 +303,32 @@ function renderBlock(block: ContentBlock, typography: ReturnType<typeof getTypog
         {renderVideo(block.url, block.content || 'Video do editorial')}
         {block.caption ? <figcaption className="mt-2 text-sm text-slate-400">{block.caption}</figcaption> : null}
       </figure>
+    );
+  }
+
+  if (/^[-*]\s+/m.test(block.content)) {
+    return (
+      <ul key={block.id} className={`${typography.line} ${typography.align}`}>
+        {block.content
+          .split('\n')
+          .filter(Boolean)
+          .map((item, index) => (
+            <li key={`${block.id}-${index}`}>{renderInlineLinks(item.replace(/^[-*]\s+/, ''))}</li>
+          ))}
+      </ul>
+    );
+  }
+
+  if (/^\d+\.\s+/m.test(block.content)) {
+    return (
+      <ol key={block.id} className={`${typography.line} ${typography.align}`}>
+        {block.content
+          .split('\n')
+          .filter(Boolean)
+          .map((item, index) => (
+            <li key={`${block.id}-${index}`}>{renderInlineLinks(item.replace(/^\d+\.\s+/, ''))}</li>
+          ))}
+      </ol>
     );
   }
 

@@ -39,20 +39,30 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 function renderInlineLinks(text: string) {
-  const parts = text.split(/(\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g);
+  const parts = text.split(/(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/g);
 
   return parts.map((part, index) => {
-    const match = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+    const linkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+    const boldMatch = part.match(/^\*\*([^*]+)\*\*$/);
+    const italicMatch = part.match(/^\*([^*]+)\*$/);
 
-    if (!match) {
-      return part;
+    if (linkMatch) {
+      return (
+        <a key={`${linkMatch[2]}-${index}`} href={linkMatch[2]} target="_blank" rel="noreferrer">
+          {linkMatch[1]}
+        </a>
+      );
     }
 
-    return (
-      <a key={`${match[2]}-${index}`} href={match[2]} target="_blank" rel="noreferrer">
-        {match[1]}
-      </a>
-    );
+    if (boldMatch) {
+      return <strong key={`strong-${index}`}>{boldMatch[1]}</strong>;
+    }
+
+    if (italicMatch) {
+      return <em key={`em-${index}`}>{italicMatch[1]}</em>;
+    }
+
+    return part;
   });
 }
 
@@ -221,6 +231,32 @@ function renderBlock(block: ContentBlock) {
         {renderVideo(block.url)}
         {block.caption ? <figcaption className="mt-2 text-sm text-slate-400">{block.caption}</figcaption> : null}
       </figure>
+    );
+  }
+
+  if (/^[-*]\s+/m.test(block.content)) {
+    return (
+      <ul key={block.id}>
+        {block.content
+          .split('\n')
+          .filter(Boolean)
+          .map((item, index) => (
+            <li key={`${block.id}-${index}`}>{renderInlineLinks(item.replace(/^[-*]\s+/, ''))}</li>
+          ))}
+      </ul>
+    );
+  }
+
+  if (/^\d+\.\s+/m.test(block.content)) {
+    return (
+      <ol key={block.id}>
+        {block.content
+          .split('\n')
+          .filter(Boolean)
+          .map((item, index) => (
+            <li key={`${block.id}-${index}`}>{renderInlineLinks(item.replace(/^\d+\.\s+/, ''))}</li>
+          ))}
+      </ol>
     );
   }
 

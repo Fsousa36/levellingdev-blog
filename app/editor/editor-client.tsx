@@ -2,18 +2,29 @@
 
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  Bold,
   CheckCircle2,
   Edit3,
   Eye,
   EyeOff,
   FileText,
+  Heading1,
+  Heading2,
+  Heading3,
   ImagePlus,
+  Italic,
   KeyRound,
   Layers3,
   Link2,
+  List,
+  ListOrdered,
   Loader2,
   PanelRight,
   PencilLine,
+  Quote,
   RefreshCw,
   Save,
   Search,
@@ -78,6 +89,33 @@ const emptyPost: PostForm = {
   }
 };
 
+const fontOptions: Array<{ label: string; value: NonNullable<PostTypography['fontFamily']> }> = [
+  { label: 'Sistema', value: 'system' },
+  { label: 'Serifada', value: 'serif' },
+  { label: 'Mono', value: 'mono' },
+  { label: 'Inter', value: 'inter' },
+  { label: 'Roboto', value: 'roboto' },
+  { label: 'Lato', value: 'lato' },
+  { label: 'Montserrat', value: 'montserrat' },
+  { label: 'Poppins', value: 'poppins' },
+  { label: 'Merriweather', value: 'merriweather' },
+  { label: 'Playfair', value: 'playfair' },
+  { label: 'Source Code', value: 'sourceCodePro' }
+];
+
+const fontWeightOptions: Array<{ label: string; value: NonNullable<PostTypography['fontWeight']> }> = [
+  { label: 'Regular', value: 'regular' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'Semibold', value: 'semibold' },
+  { label: 'Bold', value: 'bold' }
+];
+
+const blockSizeOptions: Array<{ label: string; value: 'sm' | 'md' | 'lg' }> = [
+  { label: 'Pequeno', value: 'sm' },
+  { label: 'Padrao', value: 'md' },
+  { label: 'Grande', value: 'lg' }
+];
+
 function postToContent(post: BlogPost) {
   return post.sections.flatMap((section) => section.body).join('\n\n');
 }
@@ -116,6 +154,22 @@ function blocksFromContent(content: string): ContentBlock[] {
 
       if (paragraph.startsWith('### ')) {
         return { id: createId('block'), type: 'h3', content: paragraph.replace(/^###\s+/, '') };
+      }
+
+      if (paragraph.startsWith('> ')) {
+        return { id: createId('block'), type: 'quote', content: paragraph.replace(/^>\s+/, '') };
+      }
+
+      if (/^([-*]\s+|\d+\.\s+)/.test(paragraph)) {
+        return {
+          id: createId('block'),
+          type: 'paragraph',
+          content: paragraph
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join('\n')
+        };
       }
 
       return { id: createId('block'), type: 'paragraph', content: paragraph };
@@ -408,12 +462,68 @@ export function EditorClient() {
     setEditorMessage('Link aplicado no texto selecionado.');
   }
 
+  function setTypography<K extends keyof PostTypography>(field: K, value: NonNullable<PostTypography[K]>) {
+    setForm((current) => ({
+      ...current,
+      typography: {
+        ...current.typography,
+        [field]: value
+      }
+    }));
+  }
+
+  function replaceSelectedContent(format: (selection: string) => string, fallback = 'texto') {
+    const textarea = contentRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const currentValue = form.content;
+    const start = textarea.selectionStart ?? currentValue.length;
+    const end = textarea.selectionEnd ?? currentValue.length;
+    const selectedText = currentValue.slice(start, end) || fallback;
+    const replacement = format(selectedText);
+    const nextValue = `${currentValue.slice(0, start)}${replacement}${currentValue.slice(end)}`;
+
+    setField('content', nextValue);
+    setEditorMessage('Formatacao aplicada ao texto.');
+
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, start + replacement.length);
+    });
+  }
+
+  function prefixSelectedLines(prefix: string, fallback = 'Novo paragrafo') {
+    replaceSelectedContent(
+      (selection) =>
+        selection
+          .split('\n')
+          .map((line) => (line.trim() ? `${prefix}${line.replace(/^#{1,3}\s+|^>\s+|^[-*]\s+|^\d+\.\s+/, '')}` : line))
+          .join('\n'),
+      fallback
+    );
+  }
+
+  function insertMarkdownLink() {
+    const url = manualLinkUrl.trim();
+
+    if (!url || !/^https?:\/\//i.test(url)) {
+      setEditorMessage('Cole uma URL valida com http:// ou https:// para aplicar o link.');
+      return;
+    }
+
+    replaceSelectedContent((selection) => `[${selection.trim() || 'texto do link'}](${url})`, 'texto do link');
+  }
+
   async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     try {
       setSaving(true);
-      const articleContent = form.blocks.length > 0 ? contentFromBlocks(form.blocks) : form.content;
+      const articleContent = form.content;
+      const contentBlocks = blocksFromContent(articleContent);
       const externalLinks = form.externalUrl
         ? [
             {
@@ -437,7 +547,7 @@ export function EditorClient() {
           .map((keyword) => keyword.trim())
           .filter(Boolean),
         sections: buildSections(articleContent),
-        contentBlocks: form.blocks.length > 0 ? form.blocks : blocksFromContent(form.content),
+        contentBlocks,
         widgets: form.widgets,
         typography: form.typography,
         checklist: ['Revisar ortografia e fonte.', 'Validar links e comandos.', 'Publicar manualmente apos revisao.'],
@@ -660,6 +770,143 @@ export function EditorClient() {
                 <Link2 className="h-4 w-4" />
                 Link no texto
               </button>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => prefixSelectedLines('# ', 'Titulo principal')} className="editor-button px-3" title="Titulo H1">
+                  <Heading1 className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => prefixSelectedLines('## ', 'Subtitulo')} className="editor-button px-3" title="Titulo H2">
+                  <Heading2 className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => prefixSelectedLines('### ', 'Intertitulo')} className="editor-button px-3" title="Titulo H3">
+                  <Heading3 className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => replaceSelectedContent((selection) => `**${selection}**`)} className="editor-button px-3" title="Negrito">
+                  <Bold className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => replaceSelectedContent((selection) => `*${selection}*`)} className="editor-button px-3" title="Italico">
+                  <Italic className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => prefixSelectedLines('> ', 'Citacao')} className="editor-button px-3" title="Citacao">
+                  <Quote className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => prefixSelectedLines('- ', 'Item da lista')} className="editor-button px-3" title="Lista">
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    replaceSelectedContent(
+                      (selection) =>
+                        selection
+                          .split('\n')
+                          .map((line, index) => (line.trim() ? `${index + 1}. ${line.replace(/^\d+\.\s+/, '')}` : line))
+                          .join('\n'),
+                      'Item da lista'
+                    )
+                  }
+                  className="editor-button px-3"
+                  title="Lista numerada"
+                >
+                  <ListOrdered className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={insertMarkdownLink} className="editor-button px-3" title="Link">
+                  <Link2 className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+                <Field label="Fonte">
+                  <select
+                    value={form.typography.fontFamily ?? 'system'}
+                    onChange={(event) => setTypography('fontFamily', event.target.value as NonNullable<PostTypography['fontFamily']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    {fontOptions.map((font) => (
+                      <option key={font.value} value={font.value}>
+                        {font.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Peso">
+                  <select
+                    value={form.typography.fontWeight ?? 'regular'}
+                    onChange={(event) => setTypography('fontWeight', event.target.value as NonNullable<PostTypography['fontWeight']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    {fontWeightOptions.map((weight) => (
+                      <option key={weight.value} value={weight.value}>
+                        {weight.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Titulo">
+                  <select
+                    value={form.typography.h1Size ?? 'md'}
+                    onChange={(event) => setTypography('h1Size', event.target.value as NonNullable<PostTypography['h1Size']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    {blockSizeOptions.map((size) => (
+                      <option key={size.value} value={size.value}>
+                        {size.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Subtitulo">
+                  <select
+                    value={form.typography.h2Size ?? 'md'}
+                    onChange={(event) => setTypography('h2Size', event.target.value as NonNullable<PostTypography['h2Size']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    {blockSizeOptions.map((size) => (
+                      <option key={size.value} value={size.value}>
+                        {size.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Texto">
+                  <select
+                    value={form.typography.bodySize ?? 'md'}
+                    onChange={(event) => setTypography('bodySize', event.target.value as NonNullable<PostTypography['bodySize']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    {blockSizeOptions.map((size) => (
+                      <option key={size.value} value={size.value}>
+                        {size.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Linha">
+                  <select
+                    value={form.typography.lineHeight ?? 'relaxed'}
+                    onChange={(event) => setTypography('lineHeight', event.target.value as NonNullable<PostTypography['lineHeight']>)}
+                    className="min-h-10 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white outline-none ring-cyan/40 focus:ring-2"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="relaxed">Conforto</option>
+                    <option value="loose">Espacada</option>
+                  </select>
+                </Field>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={() => setTypography('textAlign', 'left')} className="editor-button px-3" title="Alinhar esquerda">
+                  <AlignLeft className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setTypography('textAlign', 'center')} className="editor-button px-3" title="Centralizar">
+                  <AlignCenter className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setTypography('textAlign', 'justify')} className="editor-button px-3" title="Justificar">
+                  <AlignJustify className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
